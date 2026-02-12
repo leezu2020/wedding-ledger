@@ -38,11 +38,13 @@ router.get('/monthly', (req, res) => {
     const expense = totals.find(t => t.type === 'expense')?.total || 0;
     const balance = income - expense;
 
-    // Savings Total
+    // Savings Total (from transactions)
     const savingsTotal = (db.prepare(`
-      SELECT SUM(amount) as total FROM savings
-      WHERE year = ? AND month = ?${savFilter.clause}
-    `).get(year, month, ...savFilter.params) as { total: number }).total || 0;
+      SELECT SUM(t.amount) as total 
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE t.year = ? AND t.month = ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%')${txFilter.clause}
+    `).get(year, month, ...txFilter.params) as { total: number }).total || 0;
 
     // Category Breakdown with sub-categories
     const details = db.prepare(`
@@ -149,10 +151,13 @@ router.get('/yearly', (req, res) => {
     `).get(year, ...accFilter.params) as { income: number, expense: number };
     const priorBalance = (prior.income || 0) - (prior.expense || 0);
 
-    // Cumulative savings BEFORE this year
-    const priorSavings = (db.prepare(
-      `SELECT SUM(amount) as total FROM savings WHERE year < ?${accFilter.clause}`
-    ).get(year, ...accFilter.params) as { total: number }).total || 0;
+    // Cumulative savings BEFORE this year (from transactions)
+    const priorSavings = (db.prepare(`
+      SELECT SUM(t.amount) as total 
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE t.year < ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%')${accFilter.clause}
+    `).get(year, ...accFilter.params) as { total: number }).total || 0;
 
     // Monthly income/expense for this year
     const monthlyData = db.prepare(`
@@ -164,16 +169,17 @@ router.get('/yearly', (req, res) => {
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
 
-    // Monthly savings for this year
+    // Monthly savings for this year (from transactions where category major is '저축')
+    // Note: We need to join with categories table
     const monthlySavings = db.prepare(`
-      SELECT month, SUM(amount) as total FROM savings
-      WHERE year = ?${accFilter.clause}
-      GROUP BY month
+      SELECT t.month, SUM(t.amount) as total 
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE t.year = ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%') ${accFilter.clause ? `AND t.account_id IN (${accFilter.params.join(',')})` : ''}
+      GROUP BY t.month
     `).all(year, ...accFilter.params) as { month: number, total: number }[];
 
     // Monthly stocks (snapshot) for this year
-    // Note: Stocks does not have account_id, so we ignore filter for stocks or we can't filter them.
-    // The schema does not support account_id for stocks.
     const monthlyStocks = db.prepare(`
       SELECT month, SUM(buy_amount) as total FROM stocks
       WHERE year = ?
@@ -193,6 +199,32 @@ router.get('/yearly', (req, res) => {
       const expense = data?.expense || 0;
       const savings = savData?.total || 0;
       const stockTotal = stockData?.total || 0;
+      
+      // Balance is Income - Expense. 
+      // Savings are already part of Expense in current logic (since they are transactions with type='expense' usually?)
+      // Wait, if '저축' is 'expense' type in transactions, then 'balance' calculation (income - expense) ALREADY subtracts savings.
+      // So 'currentCashAndSavings' should be:
+      // If we consider Savings as Assets, then:
+      // Balance(Net Income) = Income - Expense(including Savings).
+      // So Cash increases by Balance.
+      // But Savings Asset increases by Savings amount.
+      // So Total Asset = Cash + Savings Asset.
+      // If 'expense' includes 'savings', then 'balance' is (Income - Consumption - Savings).
+      // So Cash = Previous Cash + (Income - Consumption - Savings).
+      // Savings Asset = Previous Savings + Savings.
+      // Total Asset = Cash + Savings Asset = Previous + Income - Consumption.
+      // Which matches (Income - Consumption(excluding savings)).
+      
+      // However, current 'balance' variable comes from 'monthlyData' which sums 'type=income' and 'type=expense'.
+      // If '저축' is 'expense', then 'balance' = Income - (Consumption + Savings).
+      // So 'balance' is pure cash flow.
+      // 'savings' variable is the Savings amount.
+      // 'currentCashAndSavings' logic: 
+      // cumulativeAssets += balance + savings;
+      // If Balance is (Inc - Exp), and Exp includes Sav.
+      // Then Balance + Sav = (Inc - (Cons + Sav)) + Sav = Inc - Cons.
+      // This correctly represents the Net Worth increase (ignoring stock price changes).
+      // So the logic `balance + savings` is correct IF 'balance' subtracts savings.
       
       const balance = income - expense;
       currentCashAndSavings += balance + savings;
@@ -232,7 +264,12 @@ router.get('/assets', async (req, res) => {
     const txTotals = txStmt.get() as { income: number, expense: number };
     const cashBalance = initialTotal + (txTotals.income || 0) - (txTotals.expense || 0);
 
-    const savingsStmt = db.prepare('SELECT SUM(amount) as total FROM savings');
+    const savingsStmt = db.prepare(`
+      SELECT SUM(t.amount) as total 
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE c.major LIKE '%저축%' OR c.major LIKE '%적금%'
+    `);
     const savingsTotal = (savingsStmt.get() as { total: number }).total || 0;
 
     const stockStmt = db.prepare('SELECT SUM(buy_amount) as total FROM stocks');

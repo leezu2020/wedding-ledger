@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { 
   PieChart, Pie, Cell, LineChart, Line,
   ComposedChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, ChevronDown, Check, RefreshCw } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, RefreshCw } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
 import { statisticsApi, accountsApi, stocksApi } from '../api';
 import type { Account } from '../types';
 
@@ -36,100 +37,6 @@ type YearlyData = {
   stocks: number;
   totalAssets: number;
 };
-
-// ─── Account Filter Dropdown ────────────────────────
-function AccountFilterDropdown({
-  accounts,
-  selectedIds,
-  onChange
-}: {
-  accounts: Account[];
-  selectedIds: number[];
-  onChange: (ids: number[]) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const allSelected = selectedIds.length === accounts.length;
-
-  const toggleAll = () => {
-    onChange(allSelected ? [] : accounts.map(a => a.id));
-  };
-
-  const toggle = (id: number) => {
-    onChange(
-      selectedIds.includes(id)
-        ? selectedIds.filter(i => i !== id)
-        : [...selectedIds, id]
-    );
-  };
-
-  const label = allSelected
-    ? '전체 계좌'
-    : selectedIds.length === 0
-      ? '계좌 선택'
-      : `${selectedIds.length}개 계좌`;
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-      >
-        <Wallet size={14} className="text-slate-500" />
-        <span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
-          {/* Select All */}
-          <button
-            onClick={toggleAll}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 font-medium border-b border-slate-100 dark:border-slate-700"
-          >
-            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-              allSelected
-                ? 'bg-violet-500 border-violet-500 text-white'
-                : 'border-slate-300 dark:border-slate-600'
-            }`}>
-              {allSelected && <Check size={12} />}
-            </div>
-            전체 {allSelected ? '해제' : '선택'}
-          </button>
-          {/* Individual Accounts */}
-          {accounts.map(acc => {
-            const checked = selectedIds.includes(acc.id);
-            return (
-              <button
-                key={acc.id}
-                onClick={() => toggle(acc.id)}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                  checked
-                    ? 'bg-violet-500 border-violet-500 text-white'
-                    : 'border-slate-300 dark:border-slate-600'
-                }`}>
-                  {checked && <Check size={12} />}
-                </div>
-                {acc.name}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Custom Tooltip for Pie Chart — shows sub-category breakdown on hover
 function CategoryTooltip({ active, payload, breakdown }: any) {
@@ -264,10 +171,11 @@ export default function Dashboard() {
             </button>
           </div>
           {/* Account Filter */}
-          <AccountFilterDropdown
-            accounts={accounts}
+          <MultiSelectDropdown
+            label="계좌"
+            options={accounts.map(a => ({ id: a.id, label: a.name }))}
             selectedIds={selectedAccountIds}
-            onChange={setSelectedAccountIds}
+            onChange={(ids) => setSelectedAccountIds(ids as number[])}
           />
           {/* Period Navigation */}
           <div className="flex items-center gap-2">
@@ -552,6 +460,7 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                   `₩${Number(value).toLocaleString()}`,
                   name === 'totalAssets' ? '총 자산' :
                   name === 'balance' ? '월별 정산' :
+                  name === 'savings' ? '저축' :
                   name === 'stocks' ? '투자 자산' : String(name)
                 ]}
                 labelFormatter={(label) => `${label}월`}
@@ -564,6 +473,14 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 fill="#818CF8"
                 radius={[4, 4, 0, 0]}
                 opacity={0.5}
+              />
+              <Bar
+                yAxisId="left"
+                dataKey="savings"
+                name="저축"
+                fill="#10B981"
+                radius={[4, 4, 0, 0]}
+                opacity={0.6}
               />
               {/* Show Stocks as an Area to visualize the investment portion base */}
               <Bar

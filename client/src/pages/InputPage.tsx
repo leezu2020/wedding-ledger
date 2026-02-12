@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Loader2, Plus, Trash2, Edit2, X, Check, Save } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, X, Save, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { DatePicker } from '../components/ui/DatePicker';
 import { CategorySelect } from '../components/ui/CategorySelect';
+import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
 import { 
   transactionsApi, 
   accountsApi, 
@@ -15,6 +16,11 @@ import {
   savingsApi 
 } from '../api';
 import { type Account, type Category, type Transaction, type Saving } from '../types';
+
+type SortConfig = {
+  key: 'date' | 'amount';
+  direction: 'asc' | 'desc';
+};
 
 export default function InputPage() {
   const { type: paramType } = useParams();
@@ -39,6 +45,11 @@ export default function InputPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
+
+  // Filter & Sort State
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
   // Inline Editing State
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -72,6 +83,12 @@ export default function InputPage() {
       ]);
       setAccounts(accData);
       setCategories(catData);
+      
+      // Initialize filters with all selected
+      setSelectedAccountIds(accData.map(a => a.id));
+      if (catData.length > 0) {
+        setSelectedCategoryIds(catData.map(c => c.id));
+      }
 
       if (inputType === 'savings') {
         const savData = await savingsApi.getAll(year, month);
@@ -87,6 +104,7 @@ export default function InputPage() {
     }
   };
 
+  // ... (Keep existing CRUD handlers: startEditingTx, saveEditingTx, etc.) ...
   const startEditingTx = (tx: Transaction) => {
     setEditingId(tx.id);
     setEditFormTx({ ...tx });
@@ -101,11 +119,6 @@ export default function InputPage() {
   const saveEditingTx = async () => {
     if (!editingId || !editFormTx.amount || !editFormTx.account_id || !editFormTx.category_id) return;
     try {
-      // If date was modified, parse editing value. Otherwise keep as is.
-      // Assuming editFormTx has year/month/day set on init.
-      // If we want to allow editing date, we need to handle DatePicker value in editForm.
-      // Let's assume editFormTx has updated year/month/day if DatePicker was used.
-      
       const payload = {
         type: inputType as 'income' | 'expense',
         year: editFormTx.year!, 
@@ -217,7 +230,6 @@ export default function InputPage() {
     setCurrentDate(newDate);
   };
 
-  // Helper to update date in edit form
   const updateEditDate = (dateStr: string, isTx: boolean) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return;
@@ -226,6 +238,69 @@ export default function InputPage() {
     } else {
       setEditFormSav(prev => ({ ...prev, year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() }));
     }
+  };
+
+  // Derived Data (Filtered & Sorted)
+  const processedData = useMemo(() => {
+    // 1. Filter
+    // 1. Filter
+    let data;
+    if (inputType === 'savings') {
+      data = savings.filter(s => 
+        selectedAccountIds.includes(s.account_id)
+      );
+    } else {
+      // Create a Set of selected major categories (where sub is null/empty)
+      const selectedMajorCategories = new Set(
+        categories
+          .filter(c => selectedCategoryIds.includes(c.id) && !c.sub)
+          .map(c => c.major)
+      );
+
+      data = transactions.filter(t => {
+        // Condition 1: Direct match (specific sub-category selected)
+        const directMatch = selectedCategoryIds.includes(t.category_id);
+        
+        // Condition 2: Variable match via parent (the transaction belongs to a major category that is selected as a whole)
+        // t.major comes from the join in the backend. 
+        const parentMatch = t.major && selectedMajorCategories.has(t.major);
+
+        return selectedAccountIds.includes(t.account_id) && (directMatch || parentMatch);
+      });
+    }
+
+    // 2. Sort
+    return [...data].sort((a, b) => {
+      let valA, valB;
+      
+      if (sortConfig.key === 'date') {
+        const dayA = ('day' in a) ? a.day : 1;
+        const dayB = ('day' in b) ? b.day : 1;
+        valA = (a.year * 10000) + (a.month * 100) + (dayA || 0);
+        valB = (b.year * 10000) + (b.month * 100) + (dayB || 0);
+      } else {
+        valA = a.amount;
+        valB = b.amount;
+      }
+
+      if (valA === valB) return 0;
+      const compare = valA > valB ? 1 : -1;
+      return sortConfig.direction === 'asc' ? compare : -compare;
+    });
+  }, [transactions, savings, inputType, selectedAccountIds, selectedCategoryIds, sortConfig]);
+
+  const handleSort = (key: 'date' | 'amount') => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  const SortIcon = ({ column }: { column: 'date' | 'amount' }) => {
+    if (sortConfig.key !== column) return <ArrowUpDown size={14} className="ml-1 text-slate-300" />;
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp size={14} className="ml-1 text-violet-500" />
+      : <ArrowDown size={14} className="ml-1 text-violet-500" />;
   };
 
   return (
@@ -318,26 +393,82 @@ export default function InputPage() {
             </div>
 
             {/* List Table with Inline Editing */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium">
                   <tr>
                     {inputType !== 'savings' ? (
                       <>
-                        <th className="px-4 py-3 w-[120px]">날짜</th>
-                        <th className="px-4 py-3 w-[150px]">계좌</th>
-                        <th className="px-4 py-3 w-[180px]">카테고리</th>
+                        <th 
+                          className="px-4 py-3 w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => handleSort('date')}
+                        >
+                          <div className="flex items-center">날짜 <SortIcon column="date" /></div>
+                        </th>
+                        <th className="px-4 py-3 w-[150px]">
+                          <div className="flex items-center">
+                            계좌
+                            <MultiSelectDropdown
+                              label="계좌"
+                              options={accounts.map(a => ({ id: a.id, label: a.name }))}
+                              selectedIds={selectedAccountIds}
+                              onChange={(ids) => setSelectedAccountIds(ids as number[])}
+                              align="left"
+                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
+                            />
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 w-[180px]">
+                          <div className="flex items-center">
+                            카테고리
+                            <MultiSelectDropdown
+                              label="카테고리"
+                              options={categories.map(c => ({ id: c.id, label: `${c.major}${c.sub ? ' > ' + c.sub : ''}` }))}
+                              selectedIds={selectedCategoryIds}
+                              onChange={(ids) => setSelectedCategoryIds(ids as number[])}
+                              align="left"
+                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
+                            />
+                          </div>
+                        </th>
                         <th className="px-4 py-3">내용</th>
-                        <th className="px-4 py-3 text-right w-[120px]">금액</th>
+                        <th 
+                          className="px-4 py-3 text-right w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => handleSort('amount')}
+                        >
+                           <div className="flex items-center justify-end">금액 <SortIcon column="amount" /></div>
+                        </th>
                         <th className="px-4 py-3 w-[80px]"></th>
                       </>
                     ) : (
                       <>
-                        <th className="px-4 py-3 w-[120px]">날짜</th>
+                        <th 
+                          className="px-4 py-3 w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => handleSort('date')}
+                        >
+                           <div className="flex items-center">날짜 <SortIcon column="date" /></div>
+                        </th>
                         <th className="px-4 py-3 w-[120px]">유형</th>
                         <th className="px-4 py-3 w-[150px]">이름</th>
-                        <th className="px-4 py-3 w-[150px]">출금 계좌</th>
-                        <th className="px-4 py-3 text-right w-[120px]">금액</th>
+                        <th className="px-4 py-3 w-[150px]">
+                          <div className="flex items-center">
+                            출금 계좌
+                            <MultiSelectDropdown
+                              label="계좌"
+                              options={accounts.map(a => ({ id: a.id, label: a.name }))}
+                              selectedIds={selectedAccountIds}
+                              onChange={(ids) => setSelectedAccountIds(ids as number[])}
+                              align="left"
+                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
+                            />
+                          </div>
+                        </th>
+                        <th 
+                          className="px-4 py-3 text-right w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => handleSort('amount')}
+                        >
+                           <div className="flex items-center justify-end">금액 <SortIcon column="amount" /></div>
+                        </th>
                         <th className="px-4 py-3 w-[80px]"></th>
                       </>
                     )}
@@ -345,7 +476,7 @@ export default function InputPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {inputType !== 'savings' ? (
-                    transactions.map((tx) => {
+                    (processedData as Transaction[]).map((tx) => {
                       const isEditing = editingId === tx.id;
                       return (
                         <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -421,10 +552,11 @@ export default function InputPage() {
                       );
                     })
                   ) : (
-                    savings.map((sav) => {
+                    (processedData as Saving[]).map((sav) => {
                       const isEditing = editingId === sav.id;
                       return (
-                        <tr key={sav.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                         <tr key={sav.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                           {/* ... (Keep existing saving row helpers) ... */}
                           {isEditing ? (
                             <>
                               <td className="px-2 py-2">
@@ -493,7 +625,7 @@ export default function InputPage() {
                       );
                     })
                   )}
-                  {((inputType !== 'savings' && transactions.length === 0) || (inputType === 'savings' && savings.length === 0)) && (
+                  {((processedData.length === 0)) && (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                         데이터가 없습니다.
