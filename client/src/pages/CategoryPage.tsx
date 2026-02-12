@@ -166,8 +166,9 @@ export default function CategoryPage() {
           placeholder="새 대분류명" 
           value={newMajor} 
           onChange={e => setNewMajor(e.target.value)}
+          className="flex-1"
         />
-        <Button onClick={handleAddMajor} disabled={!newMajor}>
+        <Button onClick={handleAddMajor} disabled={!newMajor} className="whitespace-nowrap shrink-0">
           <Plus size={16} className="mr-2" /> 대분류 추가
         </Button>
       </Card>
@@ -195,7 +196,7 @@ export default function CategoryPage() {
                 </div>
               ) : (
                 <div className="flex gap-2 items-center group min-w-0 flex-1">
-                  <h3 className="font-bold text-lg truncate">{major}</h3>
+                  <h3 className="font-bold text-lg truncate" title={major}>{major}</h3>
                   <button 
                     onClick={() => startEditMajor(major)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
@@ -230,9 +231,9 @@ export default function CategoryPage() {
                      placeholder="새 소분류명" 
                      value={newSub} 
                      onChange={e => setNewSub(e.target.value)} 
-                     className="h-8 text-sm min-w-0"
+                     className="h-8 text-sm min-w-0 flex-1"
                    />
-                   <Button size="sm" onClick={() => handleAddSub(major)} className="shrink-0 h-8 px-2">추가</Button>
+                   <Button size="sm" onClick={() => handleAddSub(major)} className="shrink-0 h-8 px-2 whitespace-nowrap">추가</Button>
                  </div>
                )}
                
