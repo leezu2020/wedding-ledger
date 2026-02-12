@@ -1,65 +1,43 @@
-import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { Loader2, Plus, Trash2, Edit2, X, Check } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { ko } from 'date-fns/locale';
+import { Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { 
-  transactionsApi, 
-  accountsApi, 
-  categoriesApi, 
-  savingsApi 
-} from '../api';
-import { type Account, type Category, type Transaction, type Saving } from '../types';
+import { transactionsApi, savingsApi } from '../api';
+import { type Transaction, type Saving } from '../types';
+
+type DaySummary = {
+  date: Date;
+  income: number;
+  expense: number;
+  savings: number;
+  transactions: Transaction[];
+  savingsEntries: Saving[];
+};
 
 export default function MonthlySheet() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
-  const [activeTab, setActiveTab] = useState<'income' | 'expense' | 'savings'>('expense');
   const [isLoading, setIsLoading] = useState(false);
-  
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
-
-  // Form states
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
-    day: new Date().getDate(),
-    amount: 0,
-    description: ''
-  });
-  const [newSaving, setNewSaving] = useState<Partial<Saving>>({
-    name: '',
-    amount: 0,
-    type: 'deposit'
-  });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchData();
-  }, [year, month, activeTab]);
+  }, [year, month]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [accData, catData] = await Promise.all([
-        accountsApi.getAll(),
-        categoriesApi.getAll(activeTab === 'income' || activeTab === 'expense' ? activeTab : undefined)
+      const [txData, savData] = await Promise.all([
+        transactionsApi.getAll(year, month),
+        savingsApi.getAll(year, month)
       ]);
-      setAccounts(accData);
-      setCategories(catData);
-
-      if (activeTab === 'savings') {
-        const savData = await savingsApi.getAll(year, month);
-        setSavings(savData);
-      } else {
-        const txData = await transactionsApi.getAll(year, month, activeTab);
-        setTransactions(txData);
-      }
+      setTransactions(txData);
+      setSavings(savData);
     } catch (error) {
       console.error('Failed to fetch data', error);
     } finally {
@@ -67,334 +45,281 @@ export default function MonthlySheet() {
     }
   };
 
-  const resetForms = () => {
-    setEditingId(null);
-    setNewTransaction({
-      day: new Date().getDate(),
-      amount: 0,
-      description: ''
-    });
-    setNewSaving({
-      name: '',
-      amount: 0,
-      type: 'deposit'
-    });
-  };
-
-  const handleEditTransaction = (tx: Transaction) => {
-    setEditingId(tx.id);
-    setNewTransaction({
-      day: tx.day,
-      amount: tx.amount,
-      description: tx.description,
-      account_id: tx.account_id,
-      category_id: tx.category_id
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleEditSaving = (sav: Saving) => {
-    setEditingId(sav.id);
-    setNewSaving({
-      name: sav.name,
-      amount: sav.amount,
-      type: sav.type,
-      account_id: sav.account_id,
-      description: sav.description
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleAddTransaction = async () => {
-    if (!newTransaction.amount || !newTransaction.account_id || !newTransaction.category_id) return;
-
-    try {
-      const payload = {
-        type: activeTab as 'income' | 'expense',
-        year,
-        month,
-        day: newTransaction.day || 1,
-        account_id: newTransaction.account_id,
-        category_id: newTransaction.category_id,
-        amount: Number(newTransaction.amount),
-        description: newTransaction.description
-      };
-
-      if (editingId) {
-        await transactionsApi.update(editingId, payload);
-      } else {
-        await transactionsApi.create(payload);
-      }
-      
-      fetchData();
-      resetForms();
-    } catch (error) {
-      console.error('Failed to save transaction', error);
-    }
-  };
-
-  const handleDeleteTransaction = async (id: number) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
-    try {
-      await transactionsApi.delete(id);
-      fetchData();
-    } catch (error) {
-      console.error('Failed to delete transaction', error);
-    }
-  };
-
-  const handleAddSaving = async () => {
-    if (!newSaving.amount || !newSaving.account_id || !newSaving.name) return;
-
-    try {
-      const payload = {
-        year,
-        month,
-        type: newSaving.type as 'savings_plan' | 'deposit',
-        account_id: newSaving.account_id,
-        name: newSaving.name,
-        amount: Number(newSaving.amount),
-        description: newSaving.description
-      };
-
-      if (editingId) {
-        await savingsApi.update(editingId, payload);
-      } else {
-        await savingsApi.create(payload);
-      }
-
-      fetchData();
-      resetForms();
-    } catch (error) {
-      console.error('Failed to save saving', error);
-    }
-  };
-
-  const handleDeleteSaving = async (id: number) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
-    try {
-      await savingsApi.delete(id);
-      fetchData();
-    } catch (error) {
-      console.error('Failed to delete saving', error);
-    }
-  };
-
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + delta);
     setCurrentDate(newDate);
+    setSelectedDate(null);
   };
+
+  // Build calendar grid
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calStart = startOfWeek(monthStart, { weekStartsOn: 0 }); // Sunday start
+    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+
+    const days: Date[] = [];
+    let day = calStart;
+    while (day <= calEnd) {
+      days.push(day);
+      day = addDays(day, 1);
+    }
+    return days;
+  }, [currentDate]);
+
+  // Build day summaries
+  const daySummaries = useMemo(() => {
+    const map = new Map<string, DaySummary>();
+
+    calendarDays.forEach(date => {
+      const key = format(date, 'yyyy-MM-dd');
+      map.set(key, {
+        date,
+        income: 0,
+        expense: 0,
+        savings: 0,
+        transactions: [],
+        savingsEntries: []
+      });
+    });
+
+    transactions.forEach(tx => {
+      const key = `${year}-${String(month).padStart(2, '0')}-${String(tx.day).padStart(2, '0')}`;
+      const summary = map.get(key);
+      if (summary) {
+        summary.transactions.push(tx);
+        if (tx.type === 'income') summary.income += tx.amount;
+        else summary.expense += tx.amount;
+      }
+    });
+
+    savings.forEach(sav => {
+      if (sav.day) {
+        const key = `${year}-${String(month).padStart(2, '0')}-${String(sav.day).padStart(2, '0')}`;
+        const summary = map.get(key);
+        if (summary) {
+          summary.savingsEntries.push(sav);
+          summary.savings += sav.amount;
+        }
+      }
+    });
+
+    return map;
+  }, [calendarDays, transactions, savings, year, month]);
+
+  // Monthly totals
+  const monthlyTotals = useMemo(() => {
+    let income = 0, expense = 0, savingsTotal = 0;
+    transactions.forEach(tx => {
+      if (tx.type === 'income') income += tx.amount;
+      else expense += tx.amount;
+    });
+    savings.forEach(s => savingsTotal += s.amount);
+    return { income, expense, savings: savingsTotal, balance: income - expense };
+  }, [transactions, savings]);
+
+  // Selected day data
+  const selectedDayData = useMemo(() => {
+    if (!selectedDate) return null;
+    const key = format(selectedDate, 'yyyy-MM-dd');
+    return daySummaries.get(key) || null;
+  }, [selectedDate, daySummaries]);
+
+  const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
-          <h2 className="text-2xl font-bold">{format(currentDate, 'yyyy-MM')}</h2>
-          <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
-        </div>
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-          {['income', 'expense', 'savings'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? 'bg-white dark:bg-slate-700 shadow-sm text-violet-600 dark:text-violet-400'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
-              }`}
-            >
-              {tab === 'income' ? '수입' : tab === 'expense' ? '지출' : '저축'}
-            </button>
-          ))}
-        </div>
+        <h2 className="text-2xl font-bold">월별 가계부</h2>
       </div>
 
-      <Card>
-        {isLoading ? (
-          <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
-        ) : (
-          <div className="space-y-4">
-            {/* Input Row */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
-              {activeTab !== 'savings' ? (
-                <>
-                  <Input 
-                    type="number" 
-                    label="날짜(일)" 
-                    value={newTransaction.day} 
-                    onChange={e => setNewTransaction({...newTransaction, day: Number(e.target.value)})}
-                  />
-                  <Select
-                    label="계좌"
-                    options={accounts.map(a => ({ label: a.name, value: a.id }))}
-                    value={newTransaction.account_id || ''}
-                    onChange={e => setNewTransaction({...newTransaction, account_id: Number(e.target.value)})}
-                  />
-                  <Select
-                    label="카테고리"
-                    options={categories.map(c => ({ label: c.sub ? `${c.major} > ${c.sub}` : c.major, value: c.id }))}
-                    value={newTransaction.category_id || ''}
-                    onChange={e => setNewTransaction({...newTransaction, category_id: Number(e.target.value)})}
-                  />
-                  <Input 
-                    type="number" 
-                    label="금액" 
-                    value={newTransaction.amount || ''} 
-                    onChange={e => setNewTransaction({...newTransaction, amount: Number(e.target.value)})}
-                  />
-                  <Input 
-                    label="내용" 
-                    value={newTransaction.description || ''} 
-                    onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddTransaction}>
-                      {editingId ? <Check size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                      {editingId ? '수정' : '추가'}
-                    </Button>
-                    {editingId && (
-                      <Button variant="outline" onClick={resetForms}>
-                        <X size={16} />
-                      </Button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                   <Select
-                    label="유형"
-                    options={[{ label: '적금', value: 'savings_plan' }, { label: '예금/자유저축', value: 'deposit' }]}
-                    value={newSaving.type}
-                    onChange={e => setNewSaving({...newSaving, type: e.target.value as any})}
-                  />
-                  <Select
-                    label="계좌 (출금처)"
-                    options={accounts.map(a => ({ label: a.name, value: a.id }))}
-                    value={newSaving.account_id || ''}
-                    onChange={e => setNewSaving({...newSaving, account_id: Number(e.target.value)})}
-                  />
-                  <Input 
-                    label="이름 (적금명)" 
-                    value={newSaving.name || ''} 
-                    onChange={e => setNewSaving({...newSaving, name: e.target.value})}
-                  />
-                  <Input 
-                    type="number" 
-                    label="금액" 
-                    value={newSaving.amount || ''} 
-                    onChange={e => setNewSaving({...newSaving, amount: Number(e.target.value)})}
-                  />
-                  <Input 
-                    label="내용/메모" 
-                    value={newSaving.description || ''} 
-                    onChange={e => setNewSaving({...newSaving, description: e.target.value})}
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddSaving}>
-                      {editingId ? <Check size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                      {editingId ? '수정' : '추가'}
-                    </Button>
-                    {editingId && (
-                      <Button variant="outline" onClick={resetForms}>
-                        <X size={16} />
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
+      {/* Month Navigation + Summary */}
+      <Card className="p-0 overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6">
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+              <ChevronLeft size={24} />
+            </button>
+            <h3 className="text-xl font-bold">{year}년 {month}월</h3>
+            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+              <ChevronRight size={24} />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-white/80 text-sm">수입</p>
+              <p className="text-lg font-bold text-emerald-100">{monthlyTotals.income.toLocaleString()}원</p>
             </div>
-
-            {/* List */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium">
-                  <tr>
-                    {activeTab !== 'savings' ? (
-                      <>
-                        <th className="px-4 py-3">날짜</th>
-                        <th className="px-4 py-3">계좌</th>
-                        <th className="px-4 py-3">카테고리</th>
-                        <th className="px-4 py-3">내용</th>
-                        <th className="px-4 py-3 text-right">금액</th>
-                        <th className="px-4 py-3 w-10"></th>
-                        <th className="px-4 py-3 w-10"></th>
-                      </>
-                    ) : (
-                      <>
-                        <th className="px-4 py-3">유형</th>
-                        <th className="px-4 py-3">이름</th>
-                        <th className="px-4 py-3">출금 계좌</th>
-                        <th className="px-4 py-3">내용</th>
-                        <th className="px-4 py-3 text-right">금액</th>
-                        <th className="px-4 py-3 w-10"></th>
-                        <th className="px-4 py-3 w-10"></th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {activeTab !== 'savings' ? (
-                    transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="px-4 py-3">{tx.day}</td>
-                        <td className="px-4 py-3">{tx.account_name}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-                            {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{tx.description}</td>
-                        <td className={`px-4 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {tx.amount.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => handleEditTransaction(tx)} className="text-slate-400 hover:text-blue-500 mr-2">
-                            <Edit2 size={16} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => handleDeleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    savings.map((sav) => (
-                      <tr key={sav.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                         <td className="px-4 py-3 capitalize">{sav.type.replace('_', ' ')}</td>
-                         <td className="px-4 py-3 font-medium">{sav.name}</td>
-                         <td className="px-4 py-3">{sav.account_name}</td>
-                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{sav.description}</td>
-                         <td className="px-4 py-3 text-right font-medium text-blue-600">
-                            {sav.amount.toLocaleString()}
-                         </td>
-                         <td className="px-4 py-3 text-right">
-                          <button onClick={() => handleEditSaving(sav)} className="text-slate-400 hover:text-blue-500 mr-2">
-                            <Edit2 size={16} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => handleDeleteSaving(sav.id)} className="text-slate-400 hover:text-rose-500">
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                  {((activeTab !== 'savings' && transactions.length === 0) || (activeTab === 'savings' && savings.length === 0)) && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                        데이터가 없습니다.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div>
+              <p className="text-white/80 text-sm">지출</p>
+              <p className="text-lg font-bold text-rose-200">{monthlyTotals.expense.toLocaleString()}원</p>
+            </div>
+            <div>
+              <p className="text-white/80 text-sm">합계</p>
+              <p className={`text-lg font-bold ${monthlyTotals.balance >= 0 ? 'text-white' : 'text-rose-200'}`}>
+                {monthlyTotals.balance >= 0 ? '' : ''}{monthlyTotals.balance.toLocaleString()}원
+              </p>
             </div>
           </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center p-12"><Loader2 className="animate-spin" /></div>
+        ) : (
+          <>
+            {/* Calendar Grid */}
+            <div className="border-b border-slate-200 dark:border-slate-700">
+              {/* Week day header */}
+              <div className="grid grid-cols-7 text-center text-sm font-medium">
+                {weekDays.map((day, i) => (
+                  <div 
+                    key={day} 
+                    className={`py-2 border-b border-slate-200 dark:border-slate-700 ${
+                      i === 0 ? 'text-rose-500' : i === 6 ? 'text-blue-500' : 'text-slate-500'
+                    }`}
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Day cells */}
+              <div className="grid grid-cols-7">
+                {calendarDays.map((date, idx) => {
+                  const key = format(date, 'yyyy-MM-dd');
+                  const summary = daySummaries.get(key);
+                  const isCurrentMonth = isSameMonth(date, currentDate);
+                  const isSelected = selectedDate ? isSameDay(date, selectedDate) : false;
+                  const isTodayDate = isToday(date);
+                  const dayOfWeek = date.getDay();
+
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => isCurrentMonth && setSelectedDate(isSelected ? null : date)}
+                      className={`
+                        relative min-h-[80px] p-1.5 border-b border-r border-slate-100 dark:border-slate-800
+                        text-left transition-colors
+                        ${!isCurrentMonth ? 'bg-slate-50 dark:bg-slate-900/50 opacity-40' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer'}
+                        ${isSelected ? 'bg-violet-50 dark:bg-violet-900/20 ring-2 ring-violet-500 ring-inset' : ''}
+                        ${idx % 7 === 6 ? 'border-r-0' : ''}
+                      `}
+                      disabled={!isCurrentMonth}
+                    >
+                      <span className={`
+                        text-sm font-medium leading-none
+                        ${isTodayDate ? 'bg-violet-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center' : ''}
+                        ${!isTodayDate && dayOfWeek === 0 ? 'text-rose-500' : ''}
+                        ${!isTodayDate && dayOfWeek === 6 ? 'text-blue-500' : ''}
+                        ${!isCurrentMonth ? 'text-slate-300 dark:text-slate-600' : ''}
+                      `}>
+                        {format(date, 'd')}
+                      </span>
+
+                      {isCurrentMonth && summary && (summary.income > 0 || summary.expense > 0 || summary.savings > 0) && (
+                        <div className="mt-1 space-y-0.5">
+                          {summary.income > 0 && (
+                            <p className="text-[10px] text-emerald-600 font-medium truncate leading-tight">
+                              {summary.income.toLocaleString()}
+                            </p>
+                          )}
+                          {summary.expense > 0 && (
+                            <p className="text-[10px] text-rose-500 font-medium truncate leading-tight">
+                              {summary.expense.toLocaleString()}
+                            </p>
+                          )}
+                          {summary.savings > 0 && (
+                            <p className="text-[10px] text-blue-500 font-medium truncate leading-tight">
+                              {summary.savings.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Savings Summary Row */}
+            {monthlyTotals.savings > 0 && (
+              <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">💰 이번 달 저축/적금</span>
+                <span className="text-sm font-bold text-blue-600">{monthlyTotals.savings.toLocaleString()}원</span>
+              </div>
+            )}
+
+            {/* Selected Day Detail */}
+            {selectedDate && selectedDayData && (
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700 animate-in fade-in">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-lg">
+                    {format(selectedDate, 'M월 d일 (EEEE)', { locale: ko })}
+                  </h4>
+                  <button onClick={() => setSelectedDate(null)} className="text-slate-400 hover:text-slate-600">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {selectedDayData.transactions.length === 0 && selectedDayData.savingsEntries.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-4">이 날짜에 기록된 내역이 없습니다.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedDayData.transactions.map(tx => (
+                      <div key={`tx-${tx.id}`} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-2 h-2 rounded-full ${tx.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          <div>
+                            <p className="text-sm font-medium">{tx.description || (tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '내용 없음')}</p>
+                            <p className="text-xs text-slate-400">
+                              {tx.account_name} · {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {tx.type === 'income' ? '+' : '-'}{tx.amount.toLocaleString()}원
+                        </span>
+                      </div>
+                    ))}
+                    {selectedDayData.savingsEntries.map(sav => (
+                      <div key={`sav-${sav.id}`} className="flex items-center justify-between py-2 px-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                        <div className="flex items-center gap-3">
+                          <span className="w-2 h-2 rounded-full bg-blue-500" />
+                          <div>
+                            <p className="text-sm font-medium">{sav.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {sav.account_name} · {sav.type === 'savings_plan' ? '적금' : '예금/자유저축'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-medium text-blue-600">
+                          {sav.amount.toLocaleString()}원
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Daily summary */}
+                {(selectedDayData.transactions.length > 0 || selectedDayData.savingsEntries.length > 0) && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-6 text-sm">
+                    {selectedDayData.income > 0 && (
+                      <span className="text-emerald-600">수입: +{selectedDayData.income.toLocaleString()}</span>
+                    )}
+                    {selectedDayData.expense > 0 && (
+                      <span className="text-rose-600">지출: -{selectedDayData.expense.toLocaleString()}</span>
+                    )}
+                    {selectedDayData.savings > 0 && (
+                      <span className="text-blue-600">저축: {selectedDayData.savings.toLocaleString()}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>

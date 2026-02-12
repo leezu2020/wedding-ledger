@@ -64,7 +64,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">금융 현황</h2>
+        <h2 className="text-2xl font-bold">대시보드</h2>
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
           <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
           <span className="px-4 font-semibold">{format(currentDate, 'yyyy-MM')}</span>

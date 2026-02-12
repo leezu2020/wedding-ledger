@@ -42,6 +42,7 @@ export type Saving = {
   id: number;
   year: number;
   month: number;
+  day?: number;
   type: 'savings_plan' | 'deposit';
   account_id: number;
   name: string;

@@ -3,6 +3,13 @@ import db from '../db/connection';
 
 const router = Router();
 
+// Migrate: add day column if missing
+try {
+  db.exec('ALTER TABLE savings ADD COLUMN day INTEGER');
+} catch (e) {
+  // Column already exists
+}
+
 // GET /api/savings?year=2024&month=2
 router.get('/', (req, res) => {
   const { year, month } = req.query;
@@ -28,7 +35,7 @@ router.get('/', (req, res) => {
 
 // POST /api/savings
 router.post('/', (req, res) => {
-  const { year, month, type, account_id, name, amount, description } = req.body;
+  const { year, month, day, type, account_id, name, amount, description } = req.body;
 
   if (!year || !month || !type || !account_id || !name || amount === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -36,10 +43,10 @@ router.post('/', (req, res) => {
 
   try {
     const stmt = db.prepare(`
-      INSERT INTO savings (year, month, type, account_id, name, amount, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO savings (year, month, day, type, account_id, name, amount, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(year, month, type, account_id, name, amount, description);
+    const info = stmt.run(year, month, day || null, type, account_id, name, amount, description);
     res.status(201).json({ id: info.lastInsertRowid, ...req.body });
   } catch (error) {
     console.error(error);
@@ -50,10 +57,8 @@ router.post('/', (req, res) => {
 // PUT /api/savings/:id
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { year, month, type, account_id, name, amount, description } = req.body;
+  const { year, month, day, type, account_id, name, amount, description } = req.body;
 
-  // Validate required fields (similar to POST, though partial updates might be desired, 
-  // here we assume full object replacement for simplicity or strict validation)
   if (!year || !month || !type || !account_id || !name || amount === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -61,10 +66,10 @@ router.put('/:id', (req, res) => {
   try {
     const stmt = db.prepare(`
       UPDATE savings
-      SET year = ?, month = ?, type = ?, account_id = ?, name = ?, amount = ?, description = ?
+      SET year = ?, month = ?, day = ?, type = ?, account_id = ?, name = ?, amount = ?, description = ?
       WHERE id = ?
     `);
-    const info = stmt.run(year, month, type, account_id, name, amount, description, id);
+    const info = stmt.run(year, month, day || null, type, account_id, name, amount, description, id);
 
     if (info.changes === 0) {
       return res.status(404).json({ error: 'Entry not found' });

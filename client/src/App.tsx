@@ -19,7 +19,7 @@ function App() {
         <Route path="/input/:type" element={<InputPage />} />
         <Route path="/sheet" element={<MonthlySheet />} />
         <Route path="/budgets" element={<BudgetPage />} />
-        <Route path="/savings" element={<MonthlySheet />} /> {/* Temporary redirect or specific page if needed */}
+        <Route path="/savings" element={<InputPage />} />
         <Route path="/stocks" element={<StockPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/categories" element={<CategoryPage />} />

@@ -44,6 +44,7 @@ export const initDB = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,
+      day INTEGER,
       type TEXT NOT NULL,
       account_id INTEGER REFERENCES accounts(id),
       name TEXT NOT NULL,

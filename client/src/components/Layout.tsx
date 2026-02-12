@@ -23,14 +23,14 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { label: '대시보드', href: '/', icon: LayoutDashboard },
-    { label: '통계', href: '/statistics', icon: TrendingUp },
+    { label: '월별 가계부', href: '/sheet', icon: CalendarDays },
     { label: '수입 입력', href: '/input/income', icon: CreditCard },
     { label: '지출 입력', href: '/input/expense', icon: CreditCard },
-    { label: '월별 가계부', href: '/sheet', icon: CalendarDays },
+    { label: '저축/적금', href: '/input/savings', icon: PiggyBank },
+    { label: '통계', href: '/statistics', icon: TrendingUp },
     { label: '예산 관리', href: '/budgets', icon: Wallet },
-    { label: '저축/적금', href: '/savings', icon: PiggyBank }, // Assuming mapped to Sheet or Savings page
     { label: '주식/투자', href: '/stocks', icon: TrendingUp },
-    { label: '자산(계좌)', href: '/accounts', icon: CreditCard }, // Or different icon
+    { label: '자산(계좌)', href: '/accounts', icon: CreditCard },
     { label: '설정', href: '/settings', icon: Menu },
   ];
 

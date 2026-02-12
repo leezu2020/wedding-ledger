@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* 한국어 로케일 date input에서 요일 괄호 (()) 숨기기 */
+input[type="date"]::-webkit-datetime-edit-day-of-week-field {
+  display: none;
+}
+
 @layer base {
   :root {
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
