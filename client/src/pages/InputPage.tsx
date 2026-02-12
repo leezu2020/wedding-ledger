@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Loader2, Plus, Trash2, Edit2, X, Check } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, X, Check, Save } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -40,11 +40,14 @@ export default function InputPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
 
+  // Inline Editing State
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editFormTx, setEditFormTx] = useState<Partial<Transaction>>({});
+  const [editFormSav, setEditFormSav] = useState<Partial<Saving>>({});
   
-  // Date string for datepicker (yyyy-MM-dd)
+  // Creation Form State
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [createDate, setCreateDate] = useState(todayStr);
   
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     amount: 0,
@@ -55,7 +58,6 @@ export default function InputPage() {
     amount: 0,
     type: 'deposit'
   });
-  const [savingDate, setSavingDate] = useState(todayStr);
 
   useEffect(() => {
     fetchData();
@@ -85,41 +87,73 @@ export default function InputPage() {
     }
   };
 
-  const resetForms = () => {
-    setEditingId(null);
-    setSelectedDate(todayStr);
-    setSavingDate(todayStr);
-    setNewTransaction({ amount: 0, description: '' });
-    setNewSaving({ name: '', amount: 0, type: 'deposit' });
-  };
-
-  const handleEditTransaction = (tx: Transaction) => {
+  const startEditingTx = (tx: Transaction) => {
     setEditingId(tx.id);
-    const dateStr = `${tx.year}-${String(tx.month).padStart(2, '0')}-${String(tx.day).padStart(2, '0')}`;
-    setSelectedDate(dateStr);
-    setNewTransaction({
-      amount: tx.amount, description: tx.description,
-      account_id: tx.account_id, category_id: tx.category_id
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setEditFormTx({ ...tx });
   };
 
-  const handleEditSaving = (sav: Saving) => {
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditFormTx({});
+    setEditFormSav({});
+  };
+
+  const saveEditingTx = async () => {
+    if (!editingId || !editFormTx.amount || !editFormTx.account_id || !editFormTx.category_id) return;
+    try {
+      // If date was modified, parse editing value. Otherwise keep as is.
+      // Assuming editFormTx has year/month/day set on init.
+      // If we want to allow editing date, we need to handle DatePicker value in editForm.
+      // Let's assume editFormTx has updated year/month/day if DatePicker was used.
+      
+      const payload = {
+        type: inputType as 'income' | 'expense',
+        year: editFormTx.year!, 
+        month: editFormTx.month!, 
+        day: editFormTx.day!,
+        account_id: editFormTx.account_id,
+        category_id: editFormTx.category_id,
+        amount: Number(editFormTx.amount),
+        description: editFormTx.description
+      };
+      
+      await transactionsApi.update(editingId, payload);
+      setEditingId(null);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update transaction', error);
+    }
+  };
+
+  const startEditingSav = (sav: Saving) => {
     setEditingId(sav.id);
-    const dateStr = sav.day 
-      ? `${sav.year}-${String(sav.month).padStart(2, '0')}-${String(sav.day).padStart(2, '0')}`
-      : `${sav.year}-${String(sav.month).padStart(2, '0')}-01`;
-    setSavingDate(dateStr);
-    setNewSaving({
-      name: sav.name, amount: sav.amount, type: sav.type,
-      account_id: sav.account_id, description: sav.description
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setEditFormSav({ ...sav });
+  };
+
+  const saveEditingSav = async () => {
+    if (!editingId || !editFormSav.amount || !editFormSav.account_id || !editFormSav.name) return;
+    try {
+      const payload = {
+        year: editFormSav.year!, 
+        month: editFormSav.month!, 
+        day: editFormSav.day!,
+        type: editFormSav.type as 'savings_plan' | 'deposit',
+        account_id: editFormSav.account_id,
+        name: editFormSav.name,
+        amount: Number(editFormSav.amount),
+        description: editFormSav.description
+      };
+      await savingsApi.update(editingId, payload);
+      setEditingId(null);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update saving', error);
+    }
   };
 
   const handleAddTransaction = async () => {
     if (!newTransaction.amount || !newTransaction.account_id || !newTransaction.category_id) return;
-    const d = new Date(selectedDate);
+    const d = new Date(createDate);
     try {
       const payload = {
         type: inputType as 'income' | 'expense',
@@ -129,13 +163,9 @@ export default function InputPage() {
         amount: Number(newTransaction.amount),
         description: newTransaction.description
       };
-      if (editingId) {
-        await transactionsApi.update(editingId, payload);
-      } else {
-        await transactionsApi.create(payload);
-      }
+      await transactionsApi.create(payload);
       fetchData();
-      resetForms();
+      setNewTransaction({ amount: 0, description: '' });
     } catch (error) {
       console.error('Failed to save transaction', error);
     }
@@ -153,7 +183,7 @@ export default function InputPage() {
 
   const handleAddSaving = async () => {
     if (!newSaving.amount || !newSaving.account_id || !newSaving.name) return;
-    const d = new Date(savingDate);
+    const d = new Date(createDate);
     try {
       const payload = {
         year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(),
@@ -163,13 +193,9 @@ export default function InputPage() {
         amount: Number(newSaving.amount),
         description: newSaving.description
       };
-      if (editingId) {
-        await savingsApi.update(editingId, payload);
-      } else {
-        await savingsApi.create(payload);
-      }
+      await savingsApi.create(payload);
       fetchData();
-      resetForms();
+      setNewSaving({ name: '', amount: 0, type: 'deposit' });
     } catch (error) {
       console.error('Failed to save saving', error);
     }
@@ -191,6 +217,17 @@ export default function InputPage() {
     setCurrentDate(newDate);
   };
 
+  // Helper to update date in edit form
+  const updateEditDate = (dateStr: string, isTx: boolean) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return;
+    if (isTx) {
+      setEditFormTx(prev => ({ ...prev, year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() }));
+    } else {
+      setEditFormSav(prev => ({ ...prev, year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() }));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -207,14 +244,14 @@ export default function InputPage() {
           <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
         ) : (
           <div className="space-y-4">
-            {/* Input Form */}
+            {/* Creation Form */}
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
               {inputType !== 'savings' ? (
                 <>
                   <DatePicker
                     label="날짜"
-                    value={selectedDate}
-                    onChange={e => setSelectedDate(e.target.value)}
+                    value={createDate}
+                    onChange={e => setCreateDate(e.target.value)}
                   />
                   <Select
                     label="계좌"
@@ -239,24 +276,16 @@ export default function InputPage() {
                     value={newTransaction.description || ''} 
                     onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
                   />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddTransaction}>
-                      {editingId ? <Check size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                      {editingId ? '수정' : '추가'}
-                    </Button>
-                    {editingId && (
-                      <Button variant="outline" onClick={resetForms}>
-                        <X size={16} />
-                      </Button>
-                    )}
-                  </div>
+                  <Button onClick={handleAddTransaction}>
+                    <Plus size={16} className="mr-2"/> 추가
+                  </Button>
                 </>
               ) : (
                 <>
                   <DatePicker
                     label="날짜"
-                    value={savingDate}
-                    onChange={e => setSavingDate(e.target.value)}
+                    value={createDate}
+                    onChange={e => setCreateDate(e.target.value)}
                   />
                   <Select
                     label="유형"
@@ -281,102 +310,192 @@ export default function InputPage() {
                     value={newSaving.amount || ''} 
                     onChange={e => setNewSaving({...newSaving, amount: Number(e.target.value)})}
                   />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddSaving}>
-                      {editingId ? <Check size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                      {editingId ? '수정' : '추가'}
-                    </Button>
-                    {editingId && (
-                      <Button variant="outline" onClick={resetForms}>
-                        <X size={16} />
-                      </Button>
-                    )}
-                  </div>
+                  <Button onClick={handleAddSaving}>
+                    <Plus size={16} className="mr-2"/> 추가
+                  </Button>
                 </>
               )}
             </div>
 
-            {/* List */}
+            {/* List Table with Inline Editing */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium">
                   <tr>
                     {inputType !== 'savings' ? (
                       <>
-                        <th className="px-4 py-3">날짜</th>
-                        <th className="px-4 py-3">계좌</th>
-                        <th className="px-4 py-3">카테고리</th>
+                        <th className="px-4 py-3 w-[120px]">날짜</th>
+                        <th className="px-4 py-3 w-[150px]">계좌</th>
+                        <th className="px-4 py-3 w-[180px]">카테고리</th>
                         <th className="px-4 py-3">내용</th>
-                        <th className="px-4 py-3 text-right">금액</th>
-                        <th className="px-4 py-3 w-10"></th>
-                        <th className="px-4 py-3 w-10"></th>
+                        <th className="px-4 py-3 text-right w-[120px]">금액</th>
+                        <th className="px-4 py-3 w-[80px]"></th>
                       </>
                     ) : (
                       <>
-                        <th className="px-4 py-3">날짜</th>
-                        <th className="px-4 py-3">유형</th>
-                        <th className="px-4 py-3">이름</th>
-                        <th className="px-4 py-3">출금 계좌</th>
-                        <th className="px-4 py-3 text-right">금액</th>
-                        <th className="px-4 py-3 w-10"></th>
-                        <th className="px-4 py-3 w-10"></th>
+                        <th className="px-4 py-3 w-[120px]">날짜</th>
+                        <th className="px-4 py-3 w-[120px]">유형</th>
+                        <th className="px-4 py-3 w-[150px]">이름</th>
+                        <th className="px-4 py-3 w-[150px]">출금 계좌</th>
+                        <th className="px-4 py-3 text-right w-[120px]">금액</th>
+                        <th className="px-4 py-3 w-[80px]"></th>
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {inputType !== 'savings' ? (
-                    transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="px-4 py-3">{tx.month}/{tx.day}</td>
-                        <td className="px-4 py-3">{tx.account_name}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-                            {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{tx.description}</td>
-                        <td className={`px-4 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {tx.amount.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleEditTransaction(tx)} className="text-slate-400 hover:text-blue-500">
-                            <Edit2 size={16} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleDeleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    transactions.map((tx) => {
+                      const isEditing = editingId === tx.id;
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          {isEditing ? (
+                            <>
+                              <td className="px-2 py-2">
+                                <DatePicker 
+                                  value={`${editFormTx.year}-${String(editFormTx.month).padStart(2,'0')}-${String(editFormTx.day).padStart(2,'0')}`}
+                                  onChange={e => updateEditDate(e.target.value, true)}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select
+                                  options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                                  value={editFormTx.account_id!}
+                                  onChange={e => setEditFormTx({...editFormTx, account_id: Number(e.target.value)})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <CategorySelect
+                                  categories={categories}
+                                  value={editFormTx.category_id!}
+                                  onChange={e => setEditFormTx({...editFormTx, category_id: Number(e.target.value)})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Input 
+                                  value={editFormTx.description || ''}
+                                  onChange={e => setEditFormTx({...editFormTx, description: e.target.value})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Input 
+                                  type="number"
+                                  value={editFormTx.amount || 0}
+                                  onChange={e => setEditFormTx({...editFormTx, amount: Number(e.target.value)})}
+                                  className="text-right"
+                                />
+                              </td>
+                              <td className="px-2 py-2 flex items-center justify-end gap-1">
+                                <button onClick={saveEditingTx} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                  <Save size={16} />
+                                </button>
+                                <button onClick={cancelEditing} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                                  <X size={16} />
+                                </button>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-3">{tx.month}/{tx.day}</td>
+                              <td className="px-4 py-3">{tx.account_name}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                                  {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{tx.description}</td>
+                              <td className={`px-4 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {tx.amount.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 flex items-center justify-end gap-2">
+                                <button onClick={() => startEditingTx(tx)} className="text-slate-400 hover:text-blue-500">
+                                  <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => handleDeleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })
                   ) : (
-                    savings.map((sav) => (
-                      <tr key={sav.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="px-4 py-3">{sav.day ? `${sav.month}/${sav.day}` : `${sav.month}월`}</td>
-                        <td className="px-4 py-3">{sav.type === 'savings_plan' ? '적금' : '예금/자유저축'}</td>
-                        <td className="px-4 py-3 font-medium">{sav.name}</td>
-                        <td className="px-4 py-3">{sav.account_name}</td>
-                        <td className="px-4 py-3 text-right font-medium text-blue-600">
-                          {sav.amount.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleEditSaving(sav)} className="text-slate-400 hover:text-blue-500">
-                            <Edit2 size={16} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleDeleteSaving(sav.id)} className="text-slate-400 hover:text-rose-500">
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    savings.map((sav) => {
+                      const isEditing = editingId === sav.id;
+                      return (
+                        <tr key={sav.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          {isEditing ? (
+                            <>
+                              <td className="px-2 py-2">
+                                <DatePicker 
+                                  value={`${editFormSav.year}-${String(editFormSav.month).padStart(2,'0')}-${String(editFormSav.day || 1).padStart(2,'0')}`}
+                                  onChange={e => updateEditDate(e.target.value, false)}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select
+                                  options={[{ label: '적금', value: 'savings_plan' }, { label: '예금/자유저축', value: 'deposit' }]}
+                                  value={editFormSav.type!}
+                                  onChange={e => setEditFormSav({...editFormSav, type: e.target.value as any})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Input 
+                                  value={editFormSav.name || ''}
+                                  onChange={e => setEditFormSav({...editFormSav, name: e.target.value})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select
+                                  options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                                  value={editFormSav.account_id!}
+                                  onChange={e => setEditFormSav({...editFormSav, account_id: Number(e.target.value)})}
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <Input 
+                                  type="number"
+                                  value={editFormSav.amount || 0}
+                                  onChange={e => setEditFormSav({...editFormSav, amount: Number(e.target.value)})}
+                                  className="text-right"
+                                />
+                              </td>
+                              <td className="px-2 py-2 flex items-center justify-end gap-1">
+                                <button onClick={saveEditingSav} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                                  <Save size={16} />
+                                </button>
+                                <button onClick={cancelEditing} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                                  <X size={16} />
+                                </button>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-3">{sav.day ? `${sav.month}/${sav.day}` : `${sav.month}월`}</td>
+                              <td className="px-4 py-3">{sav.type === 'savings_plan' ? '적금' : '예금/자유저축'}</td>
+                              <td className="px-4 py-3 font-medium">{sav.name}</td>
+                              <td className="px-4 py-3">{sav.account_name}</td>
+                              <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                {sav.amount.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 flex items-center justify-end gap-2">
+                                <button onClick={() => startEditingSav(sav)} className="text-slate-400 hover:text-blue-500">
+                                  <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => handleDeleteSaving(sav.id)} className="text-slate-400 hover:text-rose-500">
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })
                   )}
                   {((inputType !== 'savings' && transactions.length === 0) || (inputType === 'savings' && savings.length === 0)) && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                         데이터가 없습니다.
                       </td>
                     </tr>
