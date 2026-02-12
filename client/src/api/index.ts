@@ -15,6 +15,8 @@ export const accountsApi = {
 export const categoriesApi = {
   getAll: (type?: 'income' | 'expense') => api.get<Category[]>('/categories', { params: { type } }).then(res => res.data),
   create: (data: Omit<Category, 'id'>) => api.post<Category>('/categories', data).then(res => res.data),
+  update: (id: number, data: { major?: string; sub?: string }) => api.put<{ success: boolean }>(`/categories/${id}`, data).then(res => res.data),
+  updateMajor: (data: { type: 'income' | 'expense'; oldMajor: string; newMajor: string }) => api.put<{ success: boolean; changes: number }>('/categories/major', data).then(res => res.data),
   delete: (id: number) => api.delete(`/categories/${id}`),
 };
 

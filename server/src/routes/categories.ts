@@ -63,4 +63,68 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// PUT /api/categories/major
+// Renames a major category (updates all rows with that major name)
+router.put('/major', (req, res) => {
+  const { type, oldMajor, newMajor } = req.body;
+  if (!type || !oldMajor || !newMajor) {
+    return res.status(400).json({ error: 'Type, oldMajor, and newMajor are required' });
+  }
+
+  try {
+    const stmt = db.prepare('UPDATE categories SET major = ? WHERE type = ? AND major = ?');
+    const info = stmt.run(newMajor, type, oldMajor);
+    
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Major category not found' });
+    }
+
+    res.json({ success: true, changes: info.changes });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update major category' });
+  }
+});
+
+// PUT /api/categories/:id
+// Updates a single category (renaming sub-category or changing its major group)
+router.put('/:id', (req, res) => {
+  const { id } = req.params;
+  const { major, sub } = req.body;
+
+  try {
+    // Build update query dynamically based on provided fields
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (major !== undefined) {
+      updates.push('major = ?');
+      params.push(major);
+    }
+    if (sub !== undefined) {
+      updates.push('middle = ?');
+      params.push(sub);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const query = `UPDATE categories SET ${updates.join(', ')} WHERE id = ?`;
+    params.push(id);
+
+    const stmt = db.prepare(query);
+    const info = stmt.run(...params);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update category' });
+  }
+});
+
 export default router;
