@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Edit2, X, Check, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, Edit2, X, Save } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -172,40 +172,40 @@ export default function CategoryPage() {
         </Button>
       </Card>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {uniqueMajors.map((major) => (
-          <Card key={major} className="p-0 overflow-hidden border border-slate-200 dark:border-slate-700">
+          <Card key={major} className="p-0 overflow-hidden border border-slate-200 dark:border-slate-700 h-full">
             {/* Major Header */}
-            <div className="bg-slate-100 dark:bg-slate-800 p-4 flex justify-between items-center min-h-[64px]">
+            <div className="bg-slate-100 dark:bg-slate-800 p-3 flex justify-between items-center min-h-[56px]">
               {editingMajor === major ? (
-                <div className="flex-1 flex gap-2 items-center">
+                <div className="flex-1 flex gap-2 items-center min-w-0">
                   <Input 
                     value={editMajorName} 
                     onChange={e => setEditMajorName(e.target.value)} 
-                    className="max-w-[200px]"
+                    className="h-8 text-sm min-w-0 flex-1"
                   />
-                  <div className="flex gap-1">
+                  <div className="flex shrink-0 gap-1">
                     <button onClick={saveEditMajor} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                      <Save size={18} />
+                      <Save size={16} />
                     </button>
                     <button onClick={cancelEditMajor} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
-                      <X size={18} />
+                      <X size={16} />
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex gap-2 items-center group">
-                  <h3 className="font-bold text-lg">{major}</h3>
+                <div className="flex gap-2 items-center group min-w-0 flex-1">
+                  <h3 className="font-bold text-lg truncate">{major}</h3>
                   <button 
                     onClick={() => startEditMajor(major)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
                   >
                     <Edit2 size={14} />
                   </button>
                 </div>
               )}
               
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-1 ml-2">
                  <button 
                   onClick={() => setAddingSubTo(addingSubTo === major ? null : major)}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"
@@ -223,51 +223,51 @@ export default function CategoryPage() {
             </div>
             
             {/* Sub List */}
-            <div className="p-4 space-y-2">
+            <div className="p-3 space-y-2">
                {addingSubTo === major && (
-                 <div className="flex gap-2 mb-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded">
+                 <div className="flex gap-2 mb-3 bg-slate-50 dark:bg-slate-800/50 p-2 rounded">
                    <Input 
                      placeholder="새 소분류명" 
                      value={newSub} 
                      onChange={e => setNewSub(e.target.value)} 
-                     className="h-8 text-sm"
+                     className="h-8 text-sm min-w-0"
                    />
-                   <Button size="sm" onClick={() => handleAddSub(major)}>추가</Button>
+                   <Button size="sm" onClick={() => handleAddSub(major)} className="shrink-0 h-8 px-2">추가</Button>
                  </div>
                )}
                
                {getSubs(major).map((cat) => (
-                 <div key={cat.id} className="ml-4 border-l-2 border-slate-200 dark:border-slate-700 pl-4 py-2 flex justify-between items-center group">
+                 <div key={cat.id} className="ml-2 border-l-2 border-slate-200 dark:border-slate-700 pl-3 py-1.5 flex justify-between items-center group text-sm">
                    {editingSubId === cat.id ? (
-                      <div className="flex-1 flex gap-2 items-center">
+                      <div className="flex-1 flex gap-2 items-center min-w-0">
                         <Input 
                           value={editSubName} 
                           onChange={e => setEditSubName(e.target.value)} 
-                          className="max-w-[200px] h-8 text-sm"
+                          className="h-7 text-sm min-w-0 flex-1"
                         />
-                        <div className="flex gap-1">
-                          <button onClick={saveEditSub} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                            <Save size={16} />
+                        <div className="flex shrink-0 gap-1">
+                          <button onClick={saveEditSub} className="p-0.5 text-green-600 hover:bg-green-100 rounded">
+                            <Save size={14} />
                           </button>
-                          <button onClick={cancelEditSub} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
-                            <X size={16} />
+                          <button onClick={cancelEditSub} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded">
+                            <X size={14} />
                           </button>
                         </div>
                       </div>
                    ) : (
                      <>
-                      <div className="flex gap-2 items-center">
-                        <span className="font-medium">{cat.sub}</span>
+                      <div className="flex gap-2 items-center flex-1 min-w-0">
+                        <span className="font-medium truncate">{cat.sub}</span>
                         <button 
                           onClick={() => startEditSub(cat)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
                         >
                           <Edit2 size={12} />
                         </button>
                       </div>
                       <button 
                         onClick={() => handleDelete(cat.id)}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500"
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 shrink-0 ml-2"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -276,13 +276,13 @@ export default function CategoryPage() {
                  </div>
                ))}
                {getSubs(major).length === 0 && (
-                 <p className="text-sm text-slate-400 italic ml-4">소분류 없음</p>
+                 <p className="text-xs text-slate-400 italic ml-2">소분류 없음</p>
                )}
             </div>
           </Card>
         ))}
         {uniqueMajors.length === 0 && (
-            <p className="text-center text-slate-500 py-8">카테고리가 없습니다.</p>
+            <p className="col-span-full text-center text-slate-500 py-8">카테고리가 없습니다.</p>
         )}
       </div>
       </>
