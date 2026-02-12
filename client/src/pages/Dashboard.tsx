@@ -1,203 +1,531 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { 
-  LineChart, Line, PieChart, Pie, Cell, 
+  PieChart, Pie, Cell, LineChart, Line,
+  ComposedChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, ChevronDown, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { statisticsApi } from '../api';
+import { statisticsApi, accountsApi } from '../api';
+import type { Account } from '../types';
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const EXPENSE_COLORS = ['#F43F5E', '#FB923C', '#FBBF24', '#A78BFA', '#60A5FA', '#34D399', '#F472B6', '#818CF8'];
+const INCOME_COLORS = ['#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#14B8A6', '#84CC16', '#22D3EE', '#6366F1'];
+
+type CategoryBreakdown = { major: string; total: number; subs: { sub: string; total: number }[] };
+
+type MonthlyStats = {
+  income: number;
+  expense: number;
+  balance: number;
+  savings: number;
+  expenseBreakdown: CategoryBreakdown[];
+  incomeBreakdown: CategoryBreakdown[];
+};
+
+type YearlyData = {
+  month: number;
+  income: number;
+  expense: number;
+  balance: number;
+  savings: number;
+  cumulativeAssets: number;
+};
+
+// ─── Account Filter Dropdown ────────────────────────
+function AccountFilterDropdown({
+  accounts,
+  selectedIds,
+  onChange
+}: {
+  accounts: Account[];
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const allSelected = selectedIds.length === accounts.length;
+
+  const toggleAll = () => {
+    onChange(allSelected ? [] : accounts.map(a => a.id));
+  };
+
+  const toggle = (id: number) => {
+    onChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter(i => i !== id)
+        : [...selectedIds, id]
+    );
+  };
+
+  const label = allSelected
+    ? '전체 계좌'
+    : selectedIds.length === 0
+      ? '계좌 선택'
+      : `${selectedIds.length}개 계좌`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+      >
+        <Wallet size={14} className="text-slate-500" />
+        <span>{label}</span>
+        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
+          {/* Select All */}
+          <button
+            onClick={toggleAll}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 font-medium border-b border-slate-100 dark:border-slate-700"
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+              allSelected
+                ? 'bg-violet-500 border-violet-500 text-white'
+                : 'border-slate-300 dark:border-slate-600'
+            }`}>
+              {allSelected && <Check size={12} />}
+            </div>
+            전체 {allSelected ? '해제' : '선택'}
+          </button>
+          {/* Individual Accounts */}
+          {accounts.map(acc => {
+            const checked = selectedIds.includes(acc.id);
+            return (
+              <button
+                key={acc.id}
+                onClick={() => toggle(acc.id)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  checked
+                    ? 'bg-violet-500 border-violet-500 text-white'
+                    : 'border-slate-300 dark:border-slate-600'
+                }`}>
+                  {checked && <Check size={12} />}
+                </div>
+                {acc.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Custom Tooltip for Pie Chart — shows sub-category breakdown on hover
+function CategoryTooltip({ active, payload, breakdown }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0];
+  const majorName = data.name;
+  const entry = breakdown?.find((b: CategoryBreakdown) => b.major === majorName);
+  if (!entry) return null;
+
+  const total = entry.total;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg p-3 border border-slate-200 dark:border-slate-700 min-w-[180px]">
+      <p className="font-bold text-sm mb-2" style={{ color: data.payload?.fill }}>
+        {majorName}: ₩{total.toLocaleString()}
+      </p>
+      {entry.subs.length > 0 ? (
+        <div className="space-y-1">
+          {entry.subs.map((s: { sub: string; total: number }) => (
+            <div key={s.sub} className="flex justify-between text-xs">
+              <span className="text-slate-600 dark:text-slate-300">{s.sub}</span>
+              <span className="font-medium ml-4">
+                {((s.total / total) * 100).toFixed(1)}% <span className="text-slate-400">({s.total.toLocaleString()})</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">소분류 없음</p>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+  const [activeTab, setActiveTab] = useState<'monthly' | 'yearly'>('monthly');
   const [isLoading, setIsLoading] = useState(false);
 
-  const [monthlyStats, setMonthlyStats] = useState<{
-    income: number;
-    expense: number;
-    balance: number;
-    savings: number;
-    categoryBreakdown: { major: string; total: number }[];
-  } | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
 
-  const [assets, setAssets] = useState<{
-    cash: number; savings: number; stock: number; total: number;
-  } | null>(null);
+  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
+  const [yearlyData, setYearlyData] = useState<YearlyData[]>([]);
 
-  const [trendData, setTrendData] = useState<{
-    year: number; month: number; income: number; expense: number;
-  }[]>([]);
-
+  // Fetch accounts on mount, default all selected
   useEffect(() => {
-    fetchStats();
-  }, [year, month]);
+    accountsApi.getAll().then(accs => {
+      setAccounts(accs);
+      setSelectedAccountIds(accs.map(a => a.id));
+    });
+  }, []);
 
-  const fetchStats = async () => {
+  // Pass undefined when all selected (no filter), otherwise pass specific IDs
+  const accountIdsParam = selectedAccountIds.length === accounts.length
+    ? undefined
+    : selectedAccountIds;
+
+  const fetchMonthly = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [monthly, trend, assetData] = await Promise.all([
-        statisticsApi.getMonthly(year, month),
-        statisticsApi.getTrend(12),
-        statisticsApi.getAssets()
-      ]);
+      const monthly = await statisticsApi.getMonthly(year, month, accountIdsParam);
       setMonthlyStats(monthly);
-      setTrendData(trend);
-      setAssets(assetData);
     } catch (error) {
-      console.error('Failed to fetch statistics', error);
+      console.error('Failed to fetch monthly stats', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [year, month, accountIdsParam]);
+
+  const fetchYearly = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await statisticsApi.getYearly(year, accountIdsParam);
+      setYearlyData(data);
+    } catch (error) {
+      console.error('Failed to fetch yearly stats', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [year, accountIdsParam]);
+
+  useEffect(() => {
+    if (accounts.length === 0) return; // wait for accounts to load
+    if (activeTab === 'monthly') fetchMonthly();
+    else fetchYearly();
+  }, [activeTab, fetchMonthly, fetchYearly, accounts.length]);
 
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + delta);
+    if (activeTab === 'monthly') {
+      newDate.setMonth(newDate.getMonth() + delta);
+    } else {
+      newDate.setFullYear(newDate.getFullYear() + delta);
+    }
     setCurrentDate(newDate);
   };
 
+  const periodLabel = activeTab === 'monthly'
+    ? format(currentDate, 'yyyy-MM')
+    : `${year}년`;
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">대시보드</h2>
-        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-          <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
-          <span className="px-4 font-semibold">{format(currentDate, 'yyyy-MM')}</span>
-          <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+        <div className="flex items-center gap-4">
+          {/* Tab Buttons */}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('monthly')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                activeTab === 'monthly'
+                  ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              월별
+            </button>
+            <button
+              onClick={() => setActiveTab('yearly')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                activeTab === 'yearly'
+                  ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              연도별
+            </button>
+          </div>
+          {/* Account Filter */}
+          <AccountFilterDropdown
+            accounts={accounts}
+            selectedIds={selectedAccountIds}
+            onChange={setSelectedAccountIds}
+          />
+          {/* Period Navigation */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
+            <span className="px-4 font-semibold min-w-[100px] text-center">{periodLabel}</span>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+          </div>
         </div>
       </div>
 
       {isLoading ? (
-         <div className="flex justify-center p-12"><Loader2 className="animate-spin w-8 h-8" /></div>
+        <div className="flex justify-center p-12"><Loader2 className="animate-spin w-8 h-8" /></div>
+      ) : activeTab === 'monthly' ? (
+        <MonthlyView stats={monthlyStats} />
       ) : (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white border-none">
-              <div className="flex items-start justify-between">
-                 <div>
-                   <p className="text-indigo-100 text-sm font-medium">총 자산</p>
-                   <h3 className="text-3xl font-bold mt-2">
-                     ₩ {assets?.total.toLocaleString()}
-                   </h3>
-                 </div>
-                 <div className="p-2 bg-white/20 rounded-lg">
-                   <Wallet className="text-white" size={24} />
-                 </div>
-              </div>
-              <p className="mt-4 text-xs text-indigo-100">
-                자산: {(assets?.cash || 0).toLocaleString()} | 투자: {(assets?.stock || 0).toLocaleString()}
-              </p>
-            </Card>
-
-            <Card>
-               <div className="flex items-start justify-between">
-                 <div>
-                   <p className="text-slate-500 text-sm font-medium">이번 달 수입</p>
-                   <h3 className="text-2xl font-bold mt-1 text-emerald-600">
-                     + ₩ {monthlyStats?.income.toLocaleString()}
-                   </h3>
-                 </div>
-                 <div className="p-2 bg-emerald-100 rounded-lg">
-                   <TrendingUp className="text-emerald-600" size={20} />
-                 </div>
-              </div>
-            </Card>
-
-            <Card>
-               <div className="flex items-start justify-between">
-                 <div>
-                   <p className="text-slate-500 text-sm font-medium">이번 달 지출</p>
-                   <h3 className="text-2xl font-bold mt-1 text-rose-600">
-                     - ₩ {monthlyStats?.expense.toLocaleString()}
-                   </h3>
-                 </div>
-                 <div className="p-2 bg-rose-100 rounded-lg">
-                   <TrendingDown className="text-rose-600" size={20} />
-                 </div>
-              </div>
-            </Card>
-
-            <Card>
-               <div className="flex items-start justify-between">
-                 <div>
-                   <p className="text-slate-500 text-sm font-medium">이번 달 저축</p>
-                   <h3 className="text-2xl font-bold mt-1 text-blue-600">
-                     ₩ {monthlyStats?.savings.toLocaleString()}
-                   </h3>
-                 </div>
-                 <div className="p-2 bg-blue-100 rounded-lg">
-                   <Wallet className="text-blue-600" size={20} />
-                 </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Trend Chart */}
-            <Card>
-              <h3 className="text-lg font-bold mb-6">수입/지출 추이</h3>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                    <XAxis 
-                       dataKey="month" 
-                       tickFormatter={(month) => `${month}월`} 
-                       stroke="#94A3B8"
-                       tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                       stroke="#94A3B8"
-                       tick={{ fontSize: 12 }}
-                       tickFormatter={(val) => `${val / 10000}만`}
-                    />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: any) => [`₩ ${Number(value).toLocaleString()}`, '']}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="income" stroke="#10B981" strokeWidth={2} name="수입" dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="expense" stroke="#F43F5E" strokeWidth={2} name="지출" dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Category Pie Chart */}
-            <Card>
-              <h3 className="text-lg font-bold mb-6">지출 분석</h3>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={monthlyStats?.categoryBreakdown || []}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="total"
-                      nameKey="major"
-                    >
-                      {(monthlyStats?.categoryBreakdown || []).map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: any) => `₩ ${Number(value).toLocaleString()}`} />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </div>
-        </>
+        <YearlyView data={yearlyData} year={year} />
       )}
+    </div>
+  );
+}
+
+// ─── Monthly Tab ────────────────────────────────────
+function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
+  if (!stats) return null;
+
+  return (
+    <>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">총 수입</p>
+              <h3 className="text-2xl font-bold mt-1">₩{stats.income.toLocaleString()}</h3>
+            </div>
+            <div className="p-2 bg-white/20 rounded-lg">
+              <TrendingUp className="text-white" size={20} />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-none">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-rose-100 text-sm font-medium">총 지출</p>
+              <h3 className="text-2xl font-bold mt-1">₩{stats.expense.toLocaleString()}</h3>
+            </div>
+            <div className="p-2 bg-white/20 rounded-lg">
+              <TrendingDown className="text-white" size={20} />
+            </div>
+          </div>
+        </Card>
+
+        <Card className={`bg-gradient-to-br ${stats.balance >= 0 ? 'from-blue-500 to-indigo-600' : 'from-orange-500 to-red-600'} text-white border-none`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">정산 (수입-지출)</p>
+              <h3 className="text-2xl font-bold mt-1">
+                {stats.balance >= 0 ? '+' : ''}₩{stats.balance.toLocaleString()}
+              </h3>
+            </div>
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Scale className="text-white" size={20} />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white border-none">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-indigo-100 text-sm font-medium">총 자산</p>
+              <h3 className="text-2xl font-bold mt-1">₩{(stats.balance + stats.savings).toLocaleString()}</h3>
+            </div>
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Wallet className="text-white" size={20} />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-indigo-100">
+            수입-지출 {stats.balance.toLocaleString()} · 저축 {stats.savings.toLocaleString()}
+          </p>
+        </Card>
+      </div>
+
+      {/* Pie Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Expense Pie */}
+        <Card>
+          <h3 className="text-lg font-bold mb-4">지출 분석</h3>
+          {stats.expenseBreakdown.length > 0 ? (
+            <div className="h-[320px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.expenseBreakdown}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="total"
+                    nameKey="major"
+                  >
+                    {stats.expenseBreakdown.map((_, i) => (
+                      <Cell key={`exp-${i}`} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CategoryTooltip breakdown={stats.expenseBreakdown} />} />
+                  <Legend
+                    layout="vertical"
+                    verticalAlign="middle"
+                    align="right"
+                    formatter={(value: string) => (
+                      <span className="text-xs text-slate-600 dark:text-slate-300">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-12">지출 데이터가 없습니다.</p>
+          )}
+        </Card>
+
+        {/* Income Pie */}
+        <Card>
+          <h3 className="text-lg font-bold mb-4">수입 분석</h3>
+          {stats.incomeBreakdown.length > 0 ? (
+            <div className="h-[320px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.incomeBreakdown}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="total"
+                    nameKey="major"
+                  >
+                    {stats.incomeBreakdown.map((_, i) => (
+                      <Cell key={`inc-${i}`} fill={INCOME_COLORS[i % INCOME_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CategoryTooltip breakdown={stats.incomeBreakdown} />} />
+                  <Legend
+                    layout="vertical"
+                    verticalAlign="middle"
+                    align="right"
+                    formatter={(value: string) => (
+                      <span className="text-xs text-slate-600 dark:text-slate-300">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-12">수입 데이터가 없습니다.</p>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+// ─── Yearly Tab ─────────────────────────────────────
+function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
+  if (!data.length) return <p className="text-center text-slate-400 py-12">데이터가 없습니다.</p>;
+
+  return (
+    <div className="space-y-6">
+      {/* Composed Chart: Cumulative Assets (Line) + Monthly Balance (Bar) */}
+      <Card>
+        <h3 className="text-lg font-bold mb-4">{year}년 자산 및 월별 정산</h3>
+        <div className="h-[350px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis
+                dataKey="month"
+                tickFormatter={(m) => `${m}월`}
+                stroke="#94A3B8"
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis
+                yAxisId="left"
+                stroke="#94A3B8"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke="#94A3B8"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value: any, name: any) => [
+                  `₩${Number(value).toLocaleString()}`,
+                  String(name)
+                ]}
+                labelFormatter={(label) => `${label}월`}
+              />
+              <Legend />
+              <Bar
+                yAxisId="left"
+                dataKey="balance"
+                name="월별 정산"
+                fill="#818CF8"
+                radius={[4, 4, 0, 0]}
+                opacity={0.7}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="cumulativeAssets"
+                name="총 자산"
+                stroke="#6366F1"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#6366F1' }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* Income / Expense Trend Line Chart */}
+      <Card>
+        <h3 className="text-lg font-bold mb-4">{year}년 수입/지출 추이</h3>
+        <div className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis
+                dataKey="month"
+                tickFormatter={(m) => `${m}월`}
+                stroke="#94A3B8"
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis
+                stroke="#94A3B8"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value: any, name: any) => [
+                  `₩${Number(value).toLocaleString()}`,
+                  String(name)
+                ]}
+                labelFormatter={(label) => `${label}월`}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="income" name="수입" stroke="#10B981" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="expense" name="지출" stroke="#F43F5E" strokeWidth={2} dot={{ r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -46,16 +46,21 @@ export const stocksApi = {
 };
 
 export const statisticsApi = {
-  getMonthly: (year: number, month: number) => api.get<{
+  getMonthly: (year: number, month: number, accountIds?: number[]) => api.get<{
     income: number;
     expense: number;
     balance: number;
     savings: number;
     categoryBreakdown: { major: string; total: number }[];
-  }>('/statistics/monthly', { params: { year, month } }).then(res => res.data),
+    expenseBreakdown: { major: string; total: number; subs: { sub: string; total: number }[] }[];
+    incomeBreakdown: { major: string; total: number; subs: { sub: string; total: number }[] }[];
+  }>('/statistics/monthly', { params: { year, month, accountIds: accountIds?.join(',') } }).then(res => res.data),
   getTrend: (months: number = 6) => api.get<{
     year: number; month: number; income: number; expense: number;
   }[]>('/statistics/trend', { params: { months } }).then(res => res.data),
+  getYearly: (year: number, accountIds?: number[]) => api.get<{
+    month: number; income: number; expense: number; balance: number; savings: number; cumulativeAssets: number;
+  }[]>('/statistics/yearly', { params: { year, accountIds: accountIds?.join(',') } }).then(res => res.data),
   getAssets: () => api.get<{
     cash: number;
     savings: number;
