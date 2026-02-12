@@ -5,10 +5,10 @@ import {
   ComposedChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, ChevronDown, Check } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, ChevronDown, Check, RefreshCw } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { statisticsApi, accountsApi } from '../api';
+import { statisticsApi, accountsApi, stocksApi } from '../api';
 import type { Account } from '../types';
 
 const EXPENSE_COLORS = ['#F43F5E', '#FB923C', '#FBBF24', '#A78BFA', '#60A5FA', '#34D399', '#F472B6', '#818CF8'];
@@ -21,6 +21,8 @@ type MonthlyStats = {
   expense: number;
   balance: number;
   savings: number;
+  stocks: { ticker: string; name: string; buy_amount: number; shares: number }[];
+  stockTotal: number;
   expenseBreakdown: CategoryBreakdown[];
   incomeBreakdown: CategoryBreakdown[];
 };
@@ -31,7 +33,8 @@ type YearlyData = {
   expense: number;
   balance: number;
   savings: number;
-  cumulativeAssets: number;
+  stocks: number;
+  totalAssets: number;
 };
 
 // ─── Account Filter Dropdown ────────────────────────
@@ -287,13 +290,50 @@ export default function Dashboard() {
 }
 
 // ─── Monthly Tab ────────────────────────────────────
+// ─── Monthly Tab ────────────────────────────────────
 function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (stats?.stocks && stats.stocks.length > 0) {
+      fetchPrices();
+    }
+  }, [stats?.stocks]);
+
+  const fetchPrices = async () => {
+    if (!stats?.stocks.length) return;
+    setIsRefreshing(true);
+    try {
+      const tickers = Array.from(new Set(stats.stocks.map(s => s.ticker)));
+      const priceData = await stocksApi.getPrices(tickers);
+      setPrices(priceData);
+    } catch (error) {
+      console.error('Failed to fetch prices', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   if (!stats) return null;
+
+  // Calculate Investment Metrics
+  const stockPrincipal = stats.stockTotal;
+  const stockCurrentValue = stats.stocks.reduce((sum, s) => {
+    const price = prices[s.ticker];
+    return sum + (price ? price * s.shares : s.buy_amount); // Fallback to buy_amount if no price
+  }, 0);
+  const stockPL = stockCurrentValue - stockPrincipal;
+  const stockPLPercent = stockPrincipal > 0 ? (stockPL / stockPrincipal) * 100 : 0;
+
+  // Total Assets = Balance + Savings + Stock Current Value
+  const totalAssets = stats.balance + stats.savings + stockCurrentValue;
 
   return (
     <>
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Income */}
         <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none">
           <div className="flex items-start justify-between">
             <div>
@@ -306,6 +346,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           </div>
         </Card>
 
+        {/* Expense */}
         <Card className="bg-gradient-to-br from-rose-500 to-pink-600 text-white border-none">
           <div className="flex items-start justify-between">
             <div>
@@ -318,6 +359,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           </div>
         </Card>
 
+        {/* Balance */}
         <Card className={`bg-gradient-to-br ${stats.balance >= 0 ? 'from-blue-500 to-indigo-600' : 'from-orange-500 to-red-600'} text-white border-none`}>
           <div className="flex items-start justify-between">
             <div>
@@ -332,19 +374,57 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           </div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white border-none">
+        {/* Investments */}
+        <Card className="bg-gradient-to-br from-violet-500 to-purple-600 text-white border-none">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-indigo-100 text-sm font-medium">총 자산</p>
-              <h3 className="text-2xl font-bold mt-1">₩{(stats.balance + stats.savings).toLocaleString()}</h3>
+              <div className="flex items-center gap-2">
+                 <p className="text-violet-100 text-sm font-medium">총 투자금</p>
+                 <button onClick={fetchPrices} disabled={isRefreshing} className="p-0.5 hover:bg-white/10 rounded-full transition-colors">
+                    <RefreshCw size={12} className={`text-violet-200 ${isRefreshing ? 'animate-spin' : ''}`} />
+                 </button>
+              </div>
+              <h3 className="text-2xl font-bold mt-1">₩{stockCurrentValue.toLocaleString()}</h3>
+              <p className="text-xs text-violet-100 mt-1">
+                 원금 ₩{stockPrincipal.toLocaleString()} 
+                 {stockPrincipal > 0 && (
+                   <span className={`ml-2 font-bold ${stockPL >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                     {stockPL >= 0 ? '+' : ''}{stockPLPercent.toFixed(1)}%
+                   </span>
+                 )}
+              </p>
             </div>
             <div className="p-2 bg-white/20 rounded-lg">
-              <Wallet className="text-white" size={20} />
+              <TrendingUp className="text-white" size={20} />
             </div>
           </div>
-          <p className="mt-3 text-xs text-indigo-100">
-            수입-지출 {stats.balance.toLocaleString()} · 저축 {stats.savings.toLocaleString()}
-          </p>
+        </Card>
+
+        {/* Total Assets (Expanded) */}
+        <Card className="md:col-span-2 bg-gradient-to-br from-slate-700 to-slate-800 text-white border-none">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-slate-300 text-sm font-medium">총 자산 현황</p>
+              <h3 className="text-3xl font-bold mt-1">₩{totalAssets.toLocaleString()}</h3>
+            </div>
+            <div className="p-2 bg-white/10 rounded-lg">
+              <Wallet className="text-white" size={24} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/10 px-1">
+             <div>
+                <p className="text-xs text-slate-400">현금 자산 (잔액)</p>
+                <p className="font-semibold text-lg">₩{stats.balance.toLocaleString()}</p>
+             </div>
+             <div>
+                <p className="text-xs text-slate-400">저축 자산</p>
+                <p className="font-semibold text-lg">₩{stats.savings.toLocaleString()}</p>
+             </div>
+             <div>
+                <p className="text-xs text-slate-400">투자 자산 (평가)</p>
+                <p className="font-semibold text-lg">₩{stockCurrentValue.toLocaleString()}</p>
+             </div>
+          </div>
         </Card>
       </div>
 
@@ -430,13 +510,15 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
   );
 }
 
+
+
 // ─── Yearly Tab ─────────────────────────────────────
 function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
   if (!data.length) return <p className="text-center text-slate-400 py-12">데이터가 없습니다.</p>;
 
   return (
     <div className="space-y-6">
-      {/* Composed Chart: Cumulative Assets (Line) + Monthly Balance (Bar) */}
+      {/* Composed Chart: Total Assets (Line) + Monthly Balance (Bar) + Stocks (Area) */}
       <Card>
         <h3 className="text-lg font-bold mb-4">{year}년 자산 및 월별 정산</h3>
         <div className="h-[350px]">
@@ -466,7 +548,9 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 formatter={(value: any, name: any) => [
                   `₩${Number(value).toLocaleString()}`,
-                  String(name)
+                  name === 'totalAssets' ? '총 자산' :
+                  name === 'balance' ? '월별 정산' :
+                  name === 'stocks' ? '투자 자산' : String(name)
                 ]}
                 labelFormatter={(label) => `${label}월`}
               />
@@ -477,12 +561,21 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 name="월별 정산"
                 fill="#818CF8"
                 radius={[4, 4, 0, 0]}
-                opacity={0.7}
+                opacity={0.5}
+              />
+              {/* Show Stocks as an Area to visualize the investment portion base */}
+              <Bar
+                 yAxisId="right"
+                 dataKey="stocks"
+                 name="투자 자산"
+                 fill="#8B5CF6"
+                 radius={[2, 2, 0, 0]}
+                 opacity={0.3}
               />
               <Line
                 yAxisId="right"
                 type="monotone"
-                dataKey="cumulativeAssets"
+                dataKey="totalAssets"
                 name="총 자산"
                 stroke="#6366F1"
                 strokeWidth={3}

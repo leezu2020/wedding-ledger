@@ -73,9 +73,19 @@ router.get('/monthly', (req, res) => {
     const incomeBreakdown = Array.from(incomeMap.values()).sort((a, b) => b.total - a.total);
     const categoryBreakdown = expenseBreakdown.map(e => ({ major: e.major, total: e.total }));
 
+    // Stocks Total & List
+    const stocks = db.prepare(`
+      SELECT ticker, name, buy_amount, shares
+      FROM stocks
+      WHERE year = ? AND month = ?
+    `).all(year, month) as { ticker: string, name: string, buy_amount: number, shares: number }[];
+    
+    const stockTotal = stocks.reduce((sum, s) => sum + s.buy_amount, 0);
+
     res.json({
       income, expense, balance,
       savings: savingsTotal,
+      stocks, stockTotal,
       categoryBreakdown, expenseBreakdown, incomeBreakdown
     });
   } catch (error) {
@@ -161,20 +171,43 @@ router.get('/yearly', (req, res) => {
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, total: number }[];
 
+    // Monthly stocks (snapshot) for this year
+    // Note: Stocks does not have account_id, so we ignore filter for stocks or we can't filter them.
+    // The schema does not support account_id for stocks.
+    const monthlyStocks = db.prepare(`
+      SELECT month, SUM(buy_amount) as total FROM stocks
+      WHERE year = ?
+      GROUP BY month
+    `).all(year) as { month: number, total: number }[];
+
     // Build 12-month array
-    let cumulativeAssets = initialBalance + priorBalance + priorSavings;
+    let currentCashAndSavings = initialBalance + priorBalance + priorSavings;
     const result = [];
 
     for (let m = 1; m <= 12; m++) {
       const data = monthlyData.find(d => d.month === m);
       const savData = monthlySavings.find(s => s.month === m);
+      const stockData = monthlyStocks.find(s => s.month === m);
+      
       const income = data?.income || 0;
       const expense = data?.expense || 0;
       const savings = savData?.total || 0;
+      const stockTotal = stockData?.total || 0;
+      
       const balance = income - expense;
-      cumulativeAssets += balance + savings;
+      currentCashAndSavings += balance + savings;
+      
+      const totalAssets = currentCashAndSavings + stockTotal;
 
-      result.push({ month: m, income, expense, balance, savings, cumulativeAssets });
+      result.push({ 
+        month: m, 
+        income, 
+        expense, 
+        balance, 
+        savings, 
+        stocks: stockTotal,
+        totalAssets 
+      });
     }
 
     res.json(result);
