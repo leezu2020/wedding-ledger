@@ -446,6 +446,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
                     paddingAngle={3}
                     dataKey="total"
                     nameKey="major"
+                    label={({ percent }: any) => `${(percent * 100).toFixed(1)}%`}
                   >
                     {stats.expenseBreakdown.map((_, i) => (
                       <Cell key={`exp-${i}`} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
@@ -484,6 +485,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
                     paddingAngle={3}
                     dataKey="total"
                     nameKey="major"
+                    label={({ percent }: any) => `${(percent * 100).toFixed(1)}%`}
                   >
                     {stats.incomeBreakdown.map((_, i) => (
                       <Cell key={`inc-${i}`} fill={INCOME_COLORS[i % INCOME_COLORS.length]} />
