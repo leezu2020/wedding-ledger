@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  body {
+    @apply m-0 min-h-screen min-w-[320px] bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+  }
+}
