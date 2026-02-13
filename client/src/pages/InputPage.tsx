@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Loader2, Plus, Trash2, Edit2, X, Save, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, X, Save, ArrowUpDown, ArrowUp, ArrowDown, Wallet } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -46,8 +46,8 @@ export default function InputPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
 
-  // Filter & Sort State
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  // Tab & Sort State
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
@@ -84,8 +84,10 @@ export default function InputPage() {
       setAccounts(accData);
       setCategories(catData);
       
-      // Initialize filters with all selected
-      setSelectedAccountIds(accData.map(a => a.id));
+      // Initialize tab to first account if not yet selected
+      if (accData.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(accData[0].id);
+      }
       if (catData.length > 0) {
         setSelectedCategoryIds(catData.map(c => c.id));
       }
@@ -165,13 +167,13 @@ export default function InputPage() {
   };
 
   const handleAddTransaction = async () => {
-    if (!newTransaction.amount || !newTransaction.account_id || !newTransaction.category_id) return;
+    if (!newTransaction.amount || !selectedAccountId || !newTransaction.category_id) return;
     const d = new Date(createDate);
     try {
       const payload = {
         type: inputType as 'income' | 'expense',
         year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(),
-        account_id: newTransaction.account_id,
+        account_id: selectedAccountId,
         category_id: newTransaction.category_id,
         amount: Number(newTransaction.amount),
         description: newTransaction.description
@@ -195,13 +197,13 @@ export default function InputPage() {
   };
 
   const handleAddSaving = async () => {
-    if (!newSaving.amount || !newSaving.account_id || !newSaving.name) return;
+    if (!newSaving.amount || !selectedAccountId || !newSaving.name) return;
     const d = new Date(createDate);
     try {
       const payload = {
         year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(),
         type: newSaving.type as 'savings_plan' | 'deposit',
-        account_id: newSaving.account_id,
+        account_id: selectedAccountId,
         name: newSaving.name,
         amount: Number(newSaving.amount),
         description: newSaving.description
@@ -242,13 +244,10 @@ export default function InputPage() {
 
   // Derived Data (Filtered & Sorted)
   const processedData = useMemo(() => {
-    // 1. Filter
-    // 1. Filter
+    // 1. Filter by active tab account
     let data;
     if (inputType === 'savings') {
-      data = savings.filter(s => 
-        selectedAccountIds.includes(s.account_id)
-      );
+      data = savings.filter(s => s.account_id === selectedAccountId);
     } else {
       // Create a Set of selected major categories (where sub is null/empty)
       const selectedMajorCategories = new Set(
@@ -258,14 +257,9 @@ export default function InputPage() {
       );
 
       data = transactions.filter(t => {
-        // Condition 1: Direct match (specific sub-category selected)
         const directMatch = selectedCategoryIds.includes(t.category_id);
-        
-        // Condition 2: Variable match via parent (the transaction belongs to a major category that is selected as a whole)
-        // t.major comes from the join in the backend. 
         const parentMatch = t.major && selectedMajorCategories.has(t.major);
-
-        return selectedAccountIds.includes(t.account_id) && (directMatch || parentMatch);
+        return t.account_id === selectedAccountId && (directMatch || parentMatch);
       });
     }
 
@@ -287,7 +281,7 @@ export default function InputPage() {
       const compare = valA > valB ? 1 : -1;
       return sortConfig.direction === 'asc' ? compare : -compare;
     });
-  }, [transactions, savings, inputType, selectedAccountIds, selectedCategoryIds, sortConfig]);
+  }, [transactions, savings, inputType, selectedAccountId, selectedCategoryIds, sortConfig]);
 
   const handleSort = (key: 'date' | 'amount') => {
     setSortConfig(current => ({
@@ -314,25 +308,37 @@ export default function InputPage() {
         </div>
       </div>
 
+      {/* Account Tabs */}
+      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+        {accounts.map(acc => (
+          <button
+            key={acc.id}
+            onClick={() => setSelectedAccountId(acc.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${
+              selectedAccountId === acc.id
+                ? 'border-violet-500 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <Wallet size={14} />
+            {acc.name}
+          </button>
+        ))}
+      </div>
+
       <Card>
         {isLoading ? (
           <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
         ) : (
           <div className="space-y-4">
             {/* Creation Form */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
               {inputType !== 'savings' ? (
                 <>
                   <DatePicker
                     label="날짜"
                     value={createDate}
                     onChange={e => setCreateDate(e.target.value)}
-                  />
-                  <Select
-                    label="계좌"
-                    options={[{ label: '계좌 선택', value: '' }, ...accounts.map(a => ({ label: a.name, value: a.id }))]}
-                    value={newTransaction.account_id || ''}
-                    onChange={e => setNewTransaction({...newTransaction, account_id: Number(e.target.value)})}
                   />
                   <CategorySelect
                     label="카테고리"
@@ -368,12 +374,6 @@ export default function InputPage() {
                     value={newSaving.type}
                     onChange={e => setNewSaving({...newSaving, type: e.target.value as any})}
                   />
-                  <Select
-                    label="계좌 (출금처)"
-                    options={[{ label: '계좌 선택', value: '' }, ...accounts.map(a => ({ label: a.name, value: a.id }))]}
-                    value={newSaving.account_id || ''}
-                    onChange={e => setNewSaving({...newSaving, account_id: Number(e.target.value)})}
-                  />
                   <Input 
                     label="이름 (적금명)" 
                     value={newSaving.name || ''} 
@@ -405,20 +405,7 @@ export default function InputPage() {
                         >
                           <div className="flex items-center">날짜 <SortIcon column="date" /></div>
                         </th>
-                        <th className="px-4 py-3 w-[150px]">
-                          <div className="flex items-center">
-                            계좌
-                            <MultiSelectDropdown
-                              label="계좌"
-                              options={accounts.map(a => ({ id: a.id, label: a.name }))}
-                              selectedIds={selectedAccountIds}
-                              onChange={(ids) => setSelectedAccountIds(ids as number[])}
-                              align="left"
-                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
-                            />
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 w-[180px]">
+                        <th className="px-4 py-3 w-[240px]">
                           <div className="flex items-center">
                             카테고리
                             <MultiSelectDropdown
@@ -426,7 +413,6 @@ export default function InputPage() {
                               options={categories.map(c => ({ id: c.id, label: `${c.major}${c.sub ? ' > ' + c.sub : ''}` }))}
                               selectedIds={selectedCategoryIds}
                               onChange={(ids) => setSelectedCategoryIds(ids as number[])}
-                              align="left"
                               trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
                             />
                           </div>
@@ -450,19 +436,6 @@ export default function InputPage() {
                         </th>
                         <th className="px-4 py-3 w-[120px]">유형</th>
                         <th className="px-4 py-3 w-[150px]">이름</th>
-                        <th className="px-4 py-3 w-[150px]">
-                          <div className="flex items-center">
-                            출금 계좌
-                            <MultiSelectDropdown
-                              label="계좌"
-                              options={accounts.map(a => ({ id: a.id, label: a.name }))}
-                              selectedIds={selectedAccountIds}
-                              onChange={(ids) => setSelectedAccountIds(ids as number[])}
-                              align="left"
-                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
-                            />
-                          </div>
-                        </th>
                         <th 
                           className="px-4 py-3 text-right w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                           onClick={() => handleSort('amount')}
@@ -486,13 +459,6 @@ export default function InputPage() {
                                 <DatePicker 
                                   value={`${editFormTx.year}-${String(editFormTx.month).padStart(2,'0')}-${String(editFormTx.day).padStart(2,'0')}`}
                                   onChange={e => updateEditDate(e.target.value, true)}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <Select
-                                  options={accounts.map(a => ({ label: a.name, value: a.id }))}
-                                  value={editFormTx.account_id!}
-                                  onChange={e => setEditFormTx({...editFormTx, account_id: Number(e.target.value)})}
                                 />
                               </td>
                               <td className="px-2 py-2">
@@ -528,7 +494,6 @@ export default function InputPage() {
                           ) : (
                             <>
                               <td className="px-4 py-3">{tx.month}/{tx.day}</td>
-                              <td className="px-4 py-3">{tx.account_name}</td>
                               <td className="px-4 py-3">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                                   {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
@@ -590,13 +555,6 @@ export default function InputPage() {
                                 />
                               </td>
                               <td className="px-2 py-2">
-                                <Select
-                                  options={accounts.map(a => ({ label: a.name, value: a.id }))}
-                                  value={editFormSav.account_id!}
-                                  onChange={e => setEditFormSav({...editFormSav, account_id: Number(e.target.value)})}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
                                 <Input 
                                   type="number"
                                   value={editFormSav.amount || 0}
@@ -618,7 +576,6 @@ export default function InputPage() {
                               <td className="px-4 py-3">{sav.day ? `${sav.month}/${sav.day}` : `${sav.month}월`}</td>
                               <td className="px-4 py-3">{sav.type === 'savings_plan' ? '적금' : '예금/자유저축'}</td>
                               <td className="px-4 py-3 font-medium">{sav.name}</td>
-                              <td className="px-4 py-3">{sav.account_name}</td>
                               <td className="px-4 py-3 text-right font-medium text-blue-600">
                                 {sav.amount.toLocaleString()}
                               </td>
@@ -638,7 +595,7 @@ export default function InputPage() {
                   )}
                   {((processedData.length === 0)) && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                         데이터가 없습니다.
                       </td>
                     </tr>
