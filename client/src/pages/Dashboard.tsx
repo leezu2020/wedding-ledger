@@ -339,11 +339,11 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
       {/* Pie Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Expense Pie */}
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <h3 className="text-lg font-bold mb-4">지출 분석</h3>
           {stats.expenseBreakdown.length > 0 ? (
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[320px] min-w-0">
+              <ResponsiveContainer width="100%" height={320}>
                 <PieChart>
                   <Pie
                     data={stats.expenseBreakdown}
@@ -378,11 +378,11 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
         </Card>
 
         {/* Income Pie */}
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <h3 className="text-lg font-bold mb-4">수입 분석</h3>
           {stats.incomeBreakdown.length > 0 ? (
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[320px] min-w-0">
+              <ResponsiveContainer width="100%" height={320}>
                 <PieChart>
                   <Pie
                     data={stats.incomeBreakdown}
@@ -432,7 +432,7 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
       <Card>
         <h3 className="text-lg font-bold mb-4">{year}년 자산 및 월별 정산</h3>
         <div className="h-[350px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <ComposedChart data={data}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
               <XAxis
@@ -509,7 +509,7 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
       <Card>
         <h3 className="text-lg font-bold mb-4">{year}년 수입/지출 추이</h3>
         <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
               <XAxis
