@@ -29,6 +29,7 @@ export const initDB = () => {
       category_id INTEGER REFERENCES categories(id),
       amount INTEGER NOT NULL,
       description TEXT,
+      linked_transaction_id INTEGER REFERENCES transactions(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -66,5 +67,24 @@ export const initDB = () => {
   `;
 
   db.exec(schema);
+
+  // Migration: add linked_transaction_id if it doesn't exist yet
+  const columns = db.pragma('table_info(transactions)') as { name: string }[];
+  if (!columns.some(c => c.name === 'linked_transaction_id')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN linked_transaction_id INTEGER REFERENCES transactions(id)');
+    console.log('Migration: added linked_transaction_id column');
+  }
+
+  // Ensure transfer categories exist for all current accounts
+  const accounts = db.prepare('SELECT name FROM accounts').all() as { name: string }[];
+  const insertCat = db.prepare(
+    'INSERT INTO categories (type, major, middle, minor) SELECT ?, ?, ?, NULL WHERE NOT EXISTS (SELECT 1 FROM categories WHERE type = ? AND major = ? AND middle = ?)'
+  );
+  for (const acc of accounts) {
+    for (const type of ['income', 'expense']) {
+      insertCat.run(type, '이체', acc.name, type, '이체', acc.name);
+    }
+  }
+
   console.log('Database initialized');
 };

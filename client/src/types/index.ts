@@ -21,6 +21,7 @@ export type Transaction = {
   category_id: number;
   amount: number;
   description?: string;
+  linked_transaction_id?: number;
   // Joins
   account_name?: string;
   major?: string;

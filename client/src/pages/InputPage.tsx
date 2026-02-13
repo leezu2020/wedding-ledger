@@ -534,17 +534,28 @@ export default function InputPage() {
                                   {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{tx.description}</td>
+                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                                {tx.linked_transaction_id && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 mr-1.5">🔗 이체</span>
+                                )}
+                                {tx.description}
+                              </td>
                               <td className={`px-4 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                 {tx.amount.toLocaleString()}
                               </td>
                               <td className="px-4 py-3 flex items-center justify-end gap-2">
-                                <button onClick={() => startEditingTx(tx)} className="text-slate-400 hover:text-blue-500">
-                                  <Edit2 size={16} />
-                                </button>
-                                <button onClick={() => handleDeleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
-                                  <Trash2 size={16} />
-                                </button>
+                                {tx.description?.startsWith('[자동이체]') ? (
+                                  <span className="text-[10px] text-slate-400">원본에서 관리</span>
+                                ) : (
+                                  <>
+                                    <button onClick={() => startEditingTx(tx)} className="text-slate-400 hover:text-blue-500">
+                                      <Edit2 size={16} />
+                                    </button>
+                                    <button onClick={() => handleDeleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </>
+                                )}
                               </td>
                             </>
                           )}
