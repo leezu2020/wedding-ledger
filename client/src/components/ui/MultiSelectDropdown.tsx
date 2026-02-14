@@ -12,7 +12,7 @@ interface MultiSelectDropdownProps {
   selectedIds: (number | string)[];
   onChange: (ids: any[]) => void;
   className?: string;
-  /* ... */
+  align?: 'left' | 'right';
   trigger?: React.ReactNode;
 }
 

@@ -9,6 +9,7 @@ import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, RefreshCw } from 'luc
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
+import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { statisticsApi, accountsApi, stocksApi } from '../api';
 import type { Account } from '../types';
 
@@ -145,7 +146,10 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">대시보드</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">대시보드</h2>
+          <HelpTooltip content="이체 거래는 수입/지출 합계에서 제외됩니다." />
+        </div>
         <div className="flex items-center gap-4">
           {/* Tab Buttons */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">

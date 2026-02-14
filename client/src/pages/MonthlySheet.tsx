@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { Card } from '../components/ui/Card';
 import { transactionsApi, savingsApi } from '../api';
 import { type Transaction, type Saving } from '../types';
@@ -89,9 +90,12 @@ export default function MonthlySheet() {
       const summary = map.get(key);
       if (summary) {
         summary.transactions.push(tx);
+
+      if (!tx.linked_transaction_id) {
         if (tx.type === 'income') summary.income += tx.amount;
         else summary.expense += tx.amount;
       }
+    }
     });
 
     savings.forEach(sav => {
@@ -112,8 +116,10 @@ export default function MonthlySheet() {
   const monthlyTotals = useMemo(() => {
     let income = 0, expense = 0, savingsTotal = 0;
     transactions.forEach(tx => {
-      if (tx.type === 'income') income += tx.amount;
-      else expense += tx.amount;
+      if (!tx.linked_transaction_id) {
+        if (tx.type === 'income') income += tx.amount;
+        else expense += tx.amount;
+      }
     });
     savings.forEach(s => savingsTotal += s.amount);
     return { income, expense, savings: savingsTotal, balance: income - expense };
@@ -132,7 +138,10 @@ export default function MonthlySheet() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">월별 가계부</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">월별 가계부</h2>
+          <HelpTooltip content="이체 거래는 수입/지출 합계에서 제외됩니다." />
+        </div>
       </div>
 
       {/* Month Navigation + Summary */}
@@ -273,7 +282,14 @@ export default function MonthlySheet() {
                         <div className="flex items-center gap-3">
                           <span className={`w-2 h-2 rounded-full ${tx.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                           <div>
-                            <p className="text-sm font-medium">{tx.description || (tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '내용 없음')}</p>
+                            <p className="text-sm font-medium flex items-center gap-1">
+                              {tx.linked_transaction_id && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 mr-1.5">
+                                  🔗 이체
+                                </span>
+                              )}
+                              {(tx.description || '').replace('[자동이체]', '').trim() || (tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '내용 없음')}
+                            </p>
                             <p className="text-xs text-slate-400">
                               {tx.account_name} · {tx.major}{tx.sub ? ` > ${tx.sub}` : ''}
                             </p>

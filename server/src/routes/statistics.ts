@@ -30,7 +30,7 @@ router.get('/monthly', (req, res) => {
     const totals = db.prepare(`
       SELECT type, SUM(amount) as total
       FROM transactions
-      WHERE year = ? AND month = ?${txFilterSimple.clause}
+      WHERE year = ? AND month = ?${txFilterSimple.clause} AND linked_transaction_id IS NULL
       GROUP BY type
     `).all(year, month, ...txFilterSimple.params) as { type: string, total: number }[];
     
@@ -39,6 +39,9 @@ router.get('/monthly', (req, res) => {
     const balance = income - expense;
 
     // Savings Total (from transactions)
+    // Savings are typically NOT transfers in this logic (separate category), but if they were, we likely still want to count them as savings but not expense?
+    // Current logic: Savings are calculated from '저축'/'적금' categories.
+    // If we rely on linked_transaction_id for transfers, we assume Savings are not linked transfers.
     const savingsTotal = (db.prepare(`
       SELECT SUM(t.amount) as total 
       FROM transactions t
@@ -51,7 +54,7 @@ router.get('/monthly', (req, res) => {
       SELECT c.major, c.middle as sub, t.type, SUM(t.amount) as total
       FROM transactions t
       JOIN categories c ON t.category_id = c.id
-      WHERE t.year = ? AND t.month = ?${txFilter.clause}
+      WHERE t.year = ? AND t.month = ?${txFilter.clause} AND t.linked_transaction_id IS NULL
       GROUP BY c.major, c.middle, t.type
       ORDER BY total DESC
     `).all(year, month, ...txFilter.params) as { major: string, sub: string | null, type: string, total: number }[];
@@ -107,6 +110,7 @@ router.get('/trend', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
+      WHERE linked_transaction_id IS NULL
       GROUP BY year, month
       ORDER BY year DESC, month DESC
       LIMIT ?
@@ -147,7 +151,7 @@ router.get('/yearly', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year < ?${accFilter.clause}
+      WHERE year < ?${accFilter.clause} AND linked_transaction_id IS NULL
     `).get(year, ...accFilter.params) as { income: number, expense: number };
     const priorBalance = (prior.income || 0) - (prior.expense || 0);
 
@@ -165,7 +169,7 @@ router.get('/yearly', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year = ?${accFilter.clause}
+      WHERE year = ?${accFilter.clause} AND linked_transaction_id IS NULL
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
 
@@ -260,6 +264,7 @@ router.get('/assets', async (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
+      WHERE linked_transaction_id IS NULL
     `);
     const txTotals = txStmt.get() as { income: number, expense: number };
     const cashBalance = initialTotal + (txTotals.income || 0) - (txTotals.expense || 0);

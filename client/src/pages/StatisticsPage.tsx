@@ -1,4 +1,3 @@
-import { Layout } from '../components/Layout';
 import { Card } from '../components/ui/Card';
 
 export default function StatisticsPage() {

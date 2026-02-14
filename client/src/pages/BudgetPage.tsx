@@ -150,7 +150,7 @@ export default function BudgetPage() {
                 <XAxis dataKey="name" stroke="#64748B" fontSize={12} />
                 <YAxis stroke="#64748B" fontSize={12} tickFormatter={(val) => `${val/10000}만`} />
                 <Tooltip 
-                  formatter={(value: number) => `₩${(value || 0).toLocaleString()}`}
+                  formatter={(value: any) => `₩${(value || 0).toLocaleString()}`}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
                 <Legend />
