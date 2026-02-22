@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 import { stockService } from '../services/yahooFinance';
 
 const router = Router();
@@ -17,8 +18,7 @@ router.get('/', (req, res) => {
     const stocks = stmt.all(year, month);
     res.json(stocks);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch stocks' });
+    sendError(res, '주식 조회 실패', error);
   }
 });
 
@@ -36,8 +36,7 @@ router.get('/prices', async (req, res) => {
     const prices = await stockService.getBulkPrices(tickerList);
     res.json(prices);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch stock prices' });
+    sendError(res, '주식 시세 조회 실패', error);
   }
 });
 
@@ -57,8 +56,7 @@ router.post('/', (req, res) => {
     const info = stmt.run(year, month, ticker, name, buy_amount, shares);
     res.status(201).json({ id: info.lastInsertRowid, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to add stock' });
+    sendError(res, '주식 추가 실패', error);
   }
 });
 
@@ -76,8 +74,7 @@ router.delete('/:id', (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete stock' });
+    sendError(res, '주식 삭제 실패', error);
   }
 });
 

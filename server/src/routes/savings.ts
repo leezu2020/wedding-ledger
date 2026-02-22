@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -49,8 +50,7 @@ router.get('/', (req, res) => {
 
     res.json(savings);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch savings from transactions' });
+    sendError(res, '저축거래 내역 조회 실패', error);
   }
 });
 
@@ -97,8 +97,7 @@ router.post('/', (req, res) => {
     
     res.status(201).json({ id: info.lastInsertRowid, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create saving transaction' });
+    sendError(res, '저축거래 생성 실패', error);
   }
 });
 
@@ -141,8 +140,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ id, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update saving transaction' });
+    sendError(res, '저축거래 수정 실패', error);
   }
 });
 
@@ -160,8 +158,7 @@ router.delete('/:id', (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete entry' });
+    sendError(res, '항목 삭제 실패', error);
   }
 });
 

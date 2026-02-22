@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -39,8 +40,7 @@ router.get('/', (req, res) => {
     const accounts = stmt.all();
     res.json(accounts);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch accounts' });
+    sendError(res, '계좌 조회 실패', error);
   }
 });
 
@@ -60,8 +60,7 @@ router.post('/', (req, res) => {
 
     res.status(201).json({ id: info.lastInsertRowid, name, description, initial_balance: initial_balance || 0 });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create account' });
+    sendError(res, '계좌 생성 실패', error);
   }
 });
 
@@ -88,8 +87,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ id, name, description, initial_balance: initial_balance || 0 });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update account' });
+    sendError(res, '계좌 수정 실패', error);
   }
 });
 
@@ -122,8 +120,7 @@ router.delete('/:id', (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete account' });
+    sendError(res, '계좌 삭제 실패', error);
   }
 });
 
@@ -144,8 +141,7 @@ router.patch('/:id/main', (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to set main account' });
+    sendError(res, '메인계좌 설정 실패', error);
   }
 });
 

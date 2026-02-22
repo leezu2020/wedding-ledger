@@ -32,6 +32,7 @@ export const transactionsApi = {
 export const budgetsApi = {
   getAll: (year: number, month: number) => api.get<Budget[]>('/budgets', { params: { year, month } }).then(res => res.data),
   upsert: (data: Omit<Budget, 'id'>) => api.post<Budget>('/budgets', data).then(res => res.data),
+  delete: (id: number) => api.delete(`/budgets/${id}`),
 };
 
 export const savingsApi = {

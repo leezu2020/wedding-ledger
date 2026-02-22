@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -130,8 +131,7 @@ router.get('/monthly', (req, res) => {
       categoryBreakdown, expenseBreakdown, incomeBreakdown
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch monthly statistics' });
+    sendError(res, '월별 통계 조회 실패', error);
   }
 });
 
@@ -154,8 +154,7 @@ router.get('/trend', (req, res) => {
     const result = stmt.all(limit).reverse();
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch trend data' });
+    sendError(res, '추이 데이터 조회 실패', error);
   }
 });
 
@@ -294,8 +293,7 @@ router.get('/yearly', (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch yearly statistics' });
+    sendError(res, '연도별 통계 조회 실패', error);
   }
 });
 
@@ -333,8 +331,7 @@ router.get('/assets', async (req, res) => {
       total: cashBalance + savingsTotal + stockTotal
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch assets' });
+    sendError(res, '자산 조회 실패', error);
   }
 });
 

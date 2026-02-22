@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -75,8 +76,7 @@ router.get('/', (req, res) => {
     const transactions = stmt.all(...params);
     res.json(transactions);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch transactions' });
+    sendError(res, '거래내역 조회 실패', error);
   }
 });
 
@@ -129,8 +129,7 @@ router.post('/', (req, res) => {
 
     res.status(201).json({ id: originalId, linked_transaction_id: mirrorId, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create transaction' });
+    sendError(res, '거래내역 생성 실패', error);
   }
 });
 
@@ -198,8 +197,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ id, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update transaction' });
+    sendError(res, '거래내역 수정 실패', error);
   }
 });
 
@@ -231,10 +229,9 @@ router.delete('/:id', (req, res) => {
     // Delete the original
     db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
 
-    res.status(204).send();
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete transaction' });
+    sendError(res, '거래내역 삭제 실패', error);
   }
 });
 

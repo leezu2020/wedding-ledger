@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -19,11 +20,22 @@ router.get('/', (req, res) => {
     query += ' ORDER BY major, middle';
     
     const stmt = db.prepare(query);
-    const categories = stmt.all(...params);
-    res.json(categories);
+    const categories = stmt.all(...params) as any[];
+
+    // Check which categories are linked to savings products
+    const linkedIds = db.prepare(
+      'SELECT category_id FROM savings_products WHERE category_id IS NOT NULL AND is_active = 1'
+    ).all() as { category_id: number }[];
+    const linkedSet = new Set(linkedIds.map(r => r.category_id));
+
+    const result = categories.map(c => ({
+      ...c,
+      linked_savings: linkedSet.has(c.id)
+    }));
+
+    res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    sendError(res, '카테고리 조회 실패', error);
   }
 });
 
@@ -39,8 +51,7 @@ router.post('/', (req, res) => {
     const info = stmt.run(type, major, sub || null);
     res.status(201).json({ id: info.lastInsertRowid, type, major, sub });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create category' });
+    sendError(res, '카테고리 생성 실패', error);
   }
 });
 
@@ -49,17 +60,35 @@ router.delete('/:id', (req, res) => {
   const { id } = req.params;
 
   try {
+    // Prevent deleting categories linked to active savings products
+    const linked = db.prepare(
+      'SELECT id, bank, name FROM savings_products WHERE category_id = ? AND is_active = 1'
+    ).get(id) as { id: number, bank: string, name: string } | undefined;
+    if (linked) {
+      return res.status(400).json({ error: `저축/적금 상품(${linked.bank} ${linked.name || ''})에 연동된 카테고리입니다.` });
+    }
+
+    // Check for referencing transactions
+    const txCount = (db.prepare(
+      'SELECT COUNT(*) as cnt FROM transactions WHERE category_id = ?'
+    ).get(id) as { cnt: number }).cnt;
+    if (txCount > 0) {
+      return res.status(400).json({ error: `해당 카테고리를 사용하는 거래내역이 ${txCount}건 있어 삭제할 수 없습니다.` });
+    }
+
+    // Cascade-delete associated budgets (budgets without a category are useless)
+    db.prepare('DELETE FROM budgets WHERE category_id = ?').run(id);
+
     const stmt = db.prepare('DELETE FROM categories WHERE id = ?');
     const info = stmt.run(id);
 
     if (info.changes === 0) {
-      return res.status(404).json({ error: 'Category not found' });
+      return res.status(404).json({ error: '카테고리를 찾을 수 없습니다.' });
     }
 
-    res.status(204).send();
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete category' });
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    sendError(res, '카테고리 삭제 실패', error);
   }
 });
 
@@ -81,8 +110,7 @@ router.put('/major', (req, res) => {
 
     res.json({ success: true, changes: info.changes });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update major category' });
+    sendError(res, '대분류 수정 실패', error);
   }
 });
 
@@ -122,8 +150,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update category' });
+    sendError(res, '카테고리 수정 실패', error);
   }
 });
 

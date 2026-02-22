@@ -11,6 +11,7 @@ export type Category = {
   type: 'income' | 'expense';
   major: string;
   sub: string | null;
+  linked_savings?: boolean;
 };
 
 export type Transaction = {

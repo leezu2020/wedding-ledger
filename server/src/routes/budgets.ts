@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -21,8 +22,7 @@ router.get('/', (req, res) => {
     const budgets = stmt.all(year, month);
     res.json(budgets);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch budgets' });
+    sendError(res, '예산 조회 실패', error);
   }
 });
 
@@ -50,8 +50,25 @@ router.post('/', (req, res) => {
       res.status(201).json({ id: info.lastInsertRowid, year, month, category_id, amount });
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to save budget' });
+    sendError(res, '예산 저장 실패', error);
+  }
+});
+
+// DELETE /api/budgets/:id
+router.delete('/:id', (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const stmt = db.prepare('DELETE FROM budgets WHERE id = ?');
+    const info = stmt.run(id);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: '예산 항목을 찾을 수 없습니다.' });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    sendError(res, '예산 삭제 실패', error);
   }
 });
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/connection';
+import { sendError } from '../utils/errorHandler';
 
 const router = Router();
 
@@ -166,8 +167,7 @@ router.get('/', (req, res) => {
     const enriched = products.map(enrichProduct);
     res.json(enriched);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch savings products' });
+    sendError(res, '저축상품 조회 실패', error);
   }
 });
 
@@ -215,8 +215,7 @@ router.post('/', (req, res) => {
 
     res.status(201).json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create savings product' });
+    sendError(res, '저축상품 생성 실패', error);
   }
 });
 
@@ -245,8 +244,7 @@ router.put('/:id', (req, res) => {
 
     res.json({ id, ...req.body });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update savings product' });
+    sendError(res, '저축상품 수정 실패', error);
   }
 });
 
@@ -263,8 +261,7 @@ router.delete('/:id', (req, res) => {
     
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete savings product' });
+    sendError(res, '저축상품 삭제 실패', error);
   }
 });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Edit2, X, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, Edit2, X, Save, Link } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -72,7 +72,10 @@ export default function CategoryPage() {
      try {
        await categoriesApi.delete(id);
        fetchCategories();
-     } catch (error) { console.error(error); }
+     } catch (error: any) {
+       const msg = error?.response?.data?.error || '삭제에 실패했습니다.';
+       alert(msg);
+     }
   };
   
   const handleDeleteMajor = async (major: string) => {
@@ -197,6 +200,11 @@ export default function CategoryPage() {
               ) : (
                 <div className="flex gap-2 items-center group min-w-0 flex-1">
                   <h3 className="font-bold text-lg truncate" title={major}>{major}</h3>
+                  {categories.some(c => c.major === major && c.linked_savings) && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-teal-100 text-teal-700 shrink-0">
+                      <Link size={10} />저축연동
+                    </span>
+                  )}
                   <button 
                     onClick={() => startEditMajor(major)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
@@ -259,6 +267,11 @@ export default function CategoryPage() {
                      <>
                       <div className="flex gap-2 items-center flex-1 min-w-0">
                         <span className="font-medium truncate">{cat.sub}</span>
+                         {cat.linked_savings && (
+                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-teal-100 text-teal-700 shrink-0">
+                             <Link size={10} />연동
+                           </span>
+                         )}
                         <button 
                           onClick={() => startEditSub(cat)}
                           className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
