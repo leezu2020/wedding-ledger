@@ -494,6 +494,10 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                   name === 'savings' ? '저축' :
                   name === 'stocks' ? '투자 자산' : String(name)
                 ]}
+                itemSorter={(item: any) => {
+                  const order: Record<string, number> = { totalAssets: 0, savings: 1, stocks: 2, balance: 3 };
+                  return order[item.dataKey] ?? 99;
+                }}
                 labelFormatter={(label) => `${label}월`}
               />
               <Legend />

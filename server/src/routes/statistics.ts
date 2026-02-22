@@ -13,6 +13,28 @@ function buildAccountFilter(accountIdsParam: any, tableAlias: string = '') {
   return { clause: ` AND ${prefix}account_id IN (${placeholders})`, params: ids };
 }
 
+// Helper: calculate cumulative savings total up to a given year/month
+function getSavingsTotal(year: number, month: number): number {
+  const savingsProducts = db.prepare(`
+    SELECT sp.id, sp.initial_paid, sp.category_id
+    FROM savings_products sp
+    WHERE sp.is_active = 1
+  `).all() as { id: number, initial_paid: number, category_id: number | null }[];
+  
+  let total = 0;
+  for (const sp of savingsProducts) {
+    total += sp.initial_paid || 0;
+    if (sp.category_id) {
+      const tx = db.prepare(`
+        SELECT SUM(amount) as total FROM transactions 
+        WHERE category_id = ? AND (year < ? OR (year = ? AND month <= ?))
+      `).get(sp.category_id, year, year, month) as { total: number };
+      total += tx.total || 0;
+    }
+  }
+  return total;
+}
+
 // GET /api/statistics/monthly?year=2024&month=2&accountIds=1,2,3
 router.get('/monthly', (req, res) => {
   const { year, month, accountIds } = req.query;
@@ -45,13 +67,8 @@ router.get('/monthly', (req, res) => {
     const expense = totals.find(t => t.type === 'expense')?.total || 0;
     const balance = income - expense;
 
-    // Savings Total (from transactions)
-    const savingsTotal = (db.prepare(`
-      SELECT SUM(t.amount) as total 
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.year = ? AND t.month = ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%')${txFilter.clause}
-    `).get(year, month, ...txFilter.params) as { total: number }).total || 0;
+    // Savings Total (cumulative up to selected year/month)
+    const savingsTotal = getSavingsTotal(Number(year), Number(month));
 
     // Category Breakdown with sub-categories
     const details = db.prepare(`
@@ -180,13 +197,11 @@ router.get('/yearly', (req, res) => {
     `).get(year, ...accFilter.params) as { income: number, expense: number };
     const priorBalance = (prior.income || 0) - (prior.expense || 0);
 
-    // Cumulative savings BEFORE this year (from transactions)
-    const priorSavings = (db.prepare(`
-      SELECT SUM(t.amount) as total 
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.year < ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%')${accFilter.clause}
-    `).get(year, ...accFilter.params) as { total: number }).total || 0;
+    // Pre-compute cumulative savings for each month using the same logic as monthly tab
+    const savingsByMonth: Record<number, number> = {};
+    for (let m = 1; m <= 12; m++) {
+      savingsByMonth[m] = getSavingsTotal(Number(year), m);
+    }
 
     // Monthly income/expense for this year
     const monthlyData = db.prepare(`
@@ -197,15 +212,6 @@ router.get('/yearly', (req, res) => {
       WHERE year = ?${accFilter.clause}${transferFilter}
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
-
-    // Monthly savings for this year
-    const monthlySavings = db.prepare(`
-      SELECT t.month, SUM(t.amount) as total 
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.year = ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%') ${accFilter.clause ? `AND t.account_id IN (${accFilter.params.join(',')})` : ''}
-      GROUP BY t.month
-    `).all(year) as { month: number, total: number }[];
 
     // Monthly stocks (snapshot) for this year
     const monthlyStocks = db.prepare(`
@@ -246,25 +252,27 @@ router.get('/yearly', (req, res) => {
     }
 
     // Build 12-month array
-    let currentCashAndSavings = initialBalance + priorBalance + priorSavings;
-    let cumulativeSavings = priorSavings;
     let cumulativeStocks = 0;
     const result = [];
+    // Get savings total at end of previous year for reference
+    const prevYearSavings = getSavingsTotal(Number(year) - 1, 12);
 
     for (let m = 1; m <= 12; m++) {
       const data = monthlyData.find(d => d.month === m);
-      const savData = monthlySavings.find(s => s.month === m);
       const stockData = monthlyStocks.find(s => s.month === m);
       
       const income = data?.income || 0;
       const expense = data?.expense || 0;
-      const savings = savData?.total || 0;
       const stockTotal = stockData?.total || 0;
       
       const balance = income - expense;
-      currentCashAndSavings += balance + savings;
-      cumulativeSavings += savings;
       cumulativeStocks += stockTotal;
+      
+      // Cumulative savings total up to this month (same value as monthly tab)
+      const cumulativeSavings = savingsByMonth[m];
+      // Monthly savings delta (how much was added this month)
+      const prevSavings = m === 1 ? prevYearSavings : savingsByMonth[m - 1];
+      const savings = cumulativeSavings - prevSavings;
       
       // For main account: totalAssets = mainAccountBalance + cumulative savings + cumulative stocks
       // For other accounts: only balance matters, no total asset
@@ -276,7 +284,7 @@ router.get('/yearly', (req, res) => {
         income, 
         expense, 
         balance, 
-        savings: isMainAccount ? savings : 0, 
+        savings: isMainAccount ? cumulativeSavings : 0, 
         stocks: isMainAccount ? stockTotal : 0,
         totalAssets,
         mainAccountBalance: isMainAccount ? mainAccountBalance : 0,
