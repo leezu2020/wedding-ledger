@@ -23,6 +23,29 @@ app.use(express.json());
 // Initialize DB
 initDB();
 
+// Global Basic Authentication Middleware
+app.use((req, res, next) => {
+  const password = process.env.APP_PASSWORD;
+  
+  // If no password is set in env, skip authentication (for local dev)
+  if (!password) {
+    return next();
+  }
+
+  // Parse Authorization header
+  const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+  const [loginUser, loginPassword] = Buffer.from(b64auth, 'base64').toString().split(':');
+
+  // Verify credentials (username is hardcoded to 'admin' for simplicity)
+  if (loginUser === 'admin' && loginPassword === password) {
+    return next();
+  }
+
+  // Access denied - trigger browser login prompt
+  res.set('WWW-Authenticate', 'Basic realm="Wedding Ledger"');
+  res.status(401).send('Authentication required.');
+});
+
 // API routes
 app.use('/api/accounts', accountsRouter);
 app.use('/api/categories', categoriesRouter);
