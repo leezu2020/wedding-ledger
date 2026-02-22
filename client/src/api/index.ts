@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { Account, Category, Transaction, Budget, Saving, Stock, SavingsProduct } from '../types';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api', // Env var later
+  baseURL: '/api',
 });
 
 export const accountsApi = {

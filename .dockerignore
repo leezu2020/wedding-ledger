@@ -1,0 +1,12 @@
+node_modules
+.git
+.gitignore
+*.db
+*.db-wal
+*.db-shm
+*.log
+dist
+.agent
+.gemini
+README.md
+verify-*.js
