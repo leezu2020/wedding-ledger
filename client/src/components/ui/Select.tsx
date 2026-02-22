@@ -10,7 +10,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, label, error, options, ...props }, ref) => {
     return (
-      <div className="w-full">
+      <div className={cn('w-full', className)}>
         {label && (
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             {label}
@@ -19,8 +19,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           className={cn(
-            'flex h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white dark:bg-slate-900',
+            'flex w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white dark:bg-slate-900',
             error && 'border-rose-500 focus:ring-rose-500',
+            // Extract only non-sizing classes for the select (height is kept)
             className
           )}
           {...props}

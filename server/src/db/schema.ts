@@ -64,6 +64,24 @@ export const initDB = () => {
       shares REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS savings_products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      bank TEXT NOT NULL,
+      name TEXT,
+      pay_day INTEGER,
+      start_date TEXT NOT NULL,
+      interest_rate REAL NOT NULL,
+      interest_type TEXT DEFAULT 'simple',
+      term_months INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      tax_type TEXT DEFAULT '일반과세',
+      maturity_date TEXT,
+      category_id INTEGER REFERENCES categories(id),
+      memo TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `;
 
   db.exec(schema);
@@ -80,6 +98,13 @@ export const initDB = () => {
   if (!accColumns.some(c => c.name === 'is_main')) {
     db.exec('ALTER TABLE accounts ADD COLUMN is_main INTEGER DEFAULT 0');
     console.log('Migration: added is_main column to accounts');
+  }
+
+  // Migration: add initial_paid column to savings_products
+  const spColumns = db.pragma('table_info(savings_products)') as { name: string }[];
+  if (spColumns.length > 0 && !spColumns.some(c => c.name === 'initial_paid')) {
+    db.exec('ALTER TABLE savings_products ADD COLUMN initial_paid INTEGER DEFAULT 0');
+    console.log('Migration: added initial_paid column to savings_products');
   }
 
   // Ensure transfer categories exist for all current accounts

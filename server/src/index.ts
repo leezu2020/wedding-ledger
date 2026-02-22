@@ -7,6 +7,7 @@ import categoriesRouter from './routes/categories';
 import transactionsRouter from './routes/transactions';
 import budgetsRouter from './routes/budgets';
 import savingsRouter from './routes/savings';
+import savingsProductsRouter from './routes/savingsProducts';
 import stocksRouter from './routes/stocks';
 import statisticsRouter from './routes/statistics';
 
@@ -32,6 +33,7 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/budgets', budgetsRouter);
 app.use('/api/savings', savingsRouter);
+app.use('/api/savings-products', savingsProductsRouter);
 app.use('/api/stocks', stocksRouter);
 app.use('/api/statistics', statisticsRouter);
 

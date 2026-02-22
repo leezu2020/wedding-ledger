@@ -9,6 +9,7 @@ import StockPage from './pages/StockPage';
 import StatisticsPage from './pages/StatisticsPage';
 import InputPage from './pages/InputPage';
 import SettingsPage from './pages/SettingsPage';
+import SavingsPage from './pages/SavingsPage';
 
 function App() {
   return (
@@ -16,10 +17,11 @@ function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/statistics" element={<StatisticsPage />} />
+        <Route path="/input/savings" element={<SavingsPage />} />
         <Route path="/input/:type" element={<InputPage />} />
         <Route path="/sheet" element={<MonthlySheet />} />
         <Route path="/budgets" element={<BudgetPage />} />
-        <Route path="/savings" element={<InputPage />} />
+        <Route path="/savings" element={<SavingsPage />} />
         <Route path="/stocks" element={<StockPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/categories" element={<CategoryPage />} />

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Account, Category, Transaction, Budget, Saving, Stock } from '../types';
+import type { Account, Category, Transaction, Budget, Saving, Stock, SavingsProduct } from '../types';
 
 const api = axios.create({
   baseURL: 'http://localhost:3000/api', // Env var later
@@ -36,9 +36,17 @@ export const budgetsApi = {
 
 export const savingsApi = {
   getAll: (year: number, month: number) => api.get<Saving[]>('/savings', { params: { year, month } }).then(res => res.data),
-  create: (data: Omit<Saving, 'id'>) => api.post<Saving>('/savings', data).then(res => res.data),
-  update: (id: number, data: Omit<Saving, 'id'>) => api.put<Saving>(`/savings/${id}`, data).then(res => res.data),
-  delete: (id: number) => api.delete(`/savings/${id}`),
+  create: (data: Omit<Saving, 'id'>) => api.post<{ id: number }>('/savings', data).then(res => res.data),
+  update: (id: number, data: Partial<Saving>) => api.put(`/savings/${id}`, data).then(res => res.data),
+  delete: (id: number) => api.delete(`/savings/${id}`).then(res => res.data),
+};
+
+export const savingsProductsApi = {
+  getAll: () => api.get<SavingsProduct[]>('/savings-products').then(res => res.data),
+  create: (data: Omit<SavingsProduct, 'id' | 'principal' | 'interest' | 'tax' | 'totalAmount' | 'paidCount' | 'paidTotal' | 'paidStatus' | 'maturity_date'>) => 
+    api.post<{ id: number }>('/savings-products', data).then(res => res.data),
+  update: (id: number, data: Partial<SavingsProduct>) => api.put(`/savings-products/${id}`, data).then(res => res.data),
+  delete: (id: number) => api.delete(`/savings-products/${id}`).then(res => res.data),
 };
 
 export const stocksApi = {
