@@ -26,11 +26,18 @@ router.get('/monthly', (req, res) => {
     const txFilterSimple = buildAccountFilter(accountIds);
     const savFilter = buildAccountFilter(accountIds);
 
+    // Check if this is the main account (needed to decide transfer filter)
+    const mainAccount = db.prepare('SELECT id, initial_balance FROM accounts WHERE is_main = 1').get() as { id: number, initial_balance: number } | undefined;
+    const isMainAccount = mainAccount ? (accountIds ? String(accountIds).split(',').map(Number).includes(mainAccount.id) : true) : false;
+    // For main account: exclude transfers. For others: include transfers as income/expense.
+    const transferFilter = isMainAccount ? ' AND linked_transaction_id IS NULL' : '';
+    const transferFilterT = isMainAccount ? ' AND t.linked_transaction_id IS NULL' : '';
+
     // Total Income, Expense
     const totals = db.prepare(`
       SELECT type, SUM(amount) as total
       FROM transactions
-      WHERE year = ? AND month = ?${txFilterSimple.clause} AND linked_transaction_id IS NULL
+      WHERE year = ? AND month = ?${txFilterSimple.clause}${transferFilter}
       GROUP BY type
     `).all(year, month, ...txFilterSimple.params) as { type: string, total: number }[];
     
@@ -39,9 +46,6 @@ router.get('/monthly', (req, res) => {
     const balance = income - expense;
 
     // Savings Total (from transactions)
-    // Savings are typically NOT transfers in this logic (separate category), but if they were, we likely still want to count them as savings but not expense?
-    // Current logic: Savings are calculated from '저축'/'적금' categories.
-    // If we rely on linked_transaction_id for transfers, we assume Savings are not linked transfers.
     const savingsTotal = (db.prepare(`
       SELECT SUM(t.amount) as total 
       FROM transactions t
@@ -54,7 +58,7 @@ router.get('/monthly', (req, res) => {
       SELECT c.major, c.middle as sub, t.type, SUM(t.amount) as total
       FROM transactions t
       JOIN categories c ON t.category_id = c.id
-      WHERE t.year = ? AND t.month = ?${txFilter.clause} AND t.linked_transaction_id IS NULL
+      WHERE t.year = ? AND t.month = ?${txFilter.clause}${transferFilterT}
       GROUP BY c.major, c.middle, t.type
       ORDER BY total DESC
     `).all(year, month, ...txFilter.params) as { major: string, sub: string | null, type: string, total: number }[];
@@ -87,10 +91,25 @@ router.get('/monthly', (req, res) => {
     
     const stockTotal = stocks.reduce((sum, s) => sum + s.buy_amount, 0);
 
+    // Main account balance (initial_balance + cumulative income - expense up to this month)
+    let mainAccountBalance = 0;
+    if (mainAccount) {
+      const mainInitial = mainAccount.initial_balance || 0;
+      const mainTx = db.prepare(`
+        SELECT 
+          SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
+          SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
+        FROM transactions
+        WHERE account_id = ? AND (year < ? OR (year = ? AND month <= ?)) AND linked_transaction_id IS NULL
+      `).get(mainAccount.id, year, year, month) as { income: number, expense: number };
+      mainAccountBalance = mainInitial + (mainTx.income || 0) - (mainTx.expense || 0);
+    }
+
     res.json({
       income, expense, balance,
       savings: savingsTotal,
       stocks, stockTotal,
+      mainAccountBalance, isMainAccount,
       categoryBreakdown, expenseBreakdown, incomeBreakdown
     });
   } catch (error) {
@@ -140,6 +159,12 @@ router.get('/yearly', (req, res) => {
       ? String(accountIds).split(',').map(Number).filter(n => !isNaN(n)) 
       : [];
 
+    // Check if selected account is the main account
+    const mainAccount = db.prepare('SELECT id, initial_balance FROM accounts WHERE is_main = 1').get() as { id: number, initial_balance: number } | undefined;
+    const isMainAccount = mainAccount ? (accountIds ? String(accountIds).split(',').map(Number).includes(mainAccount.id) : true) : false;
+    // For main account: exclude transfers. For others: include them.
+    const transferFilter = isMainAccount ? ' AND linked_transaction_id IS NULL' : '';
+
     // Initial balance from accounts
     const initialBalance = (db.prepare(
       `SELECT SUM(initial_balance) as total FROM accounts${accFilterWhere.replace('account_id', 'id')}`
@@ -151,7 +176,7 @@ router.get('/yearly', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year < ?${accFilter.clause} AND linked_transaction_id IS NULL
+      WHERE year < ?${accFilter.clause}${transferFilter}
     `).get(year, ...accFilter.params) as { income: number, expense: number };
     const priorBalance = (prior.income || 0) - (prior.expense || 0);
 
@@ -169,19 +194,18 @@ router.get('/yearly', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year = ?${accFilter.clause} AND linked_transaction_id IS NULL
+      WHERE year = ?${accFilter.clause}${transferFilter}
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
 
-    // Monthly savings for this year (from transactions where category major is '저축')
-    // Note: We need to join with categories table
+    // Monthly savings for this year
     const monthlySavings = db.prepare(`
       SELECT t.month, SUM(t.amount) as total 
       FROM transactions t
       JOIN categories c ON t.category_id = c.id
       WHERE t.year = ? AND (c.major LIKE '%저축%' OR c.major LIKE '%적금%') ${accFilter.clause ? `AND t.account_id IN (${accFilter.params.join(',')})` : ''}
       GROUP BY t.month
-    `).all(year, ...accFilter.params) as { month: number, total: number }[];
+    `).all(year) as { month: number, total: number }[];
 
     // Monthly stocks (snapshot) for this year
     const monthlyStocks = db.prepare(`
@@ -190,8 +214,41 @@ router.get('/yearly', (req, res) => {
       GROUP BY month
     `).all(year) as { month: number, total: number }[];
 
+    // Main account balance per month (for totalAssets when main account is selected)
+    let mainBalancePerMonth: Record<number, number> = {};
+    if (isMainAccount && mainAccount) {
+      const mainInitial = mainAccount.initial_balance || 0;
+      // Get cumulative balance before this year for main account
+      const mainPrior = db.prepare(`
+        SELECT 
+          SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
+          SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
+        FROM transactions
+        WHERE account_id = ? AND year < ? AND linked_transaction_id IS NULL
+      `).get(mainAccount.id, year) as { income: number, expense: number };
+      let runningBalance = mainInitial + (mainPrior.income || 0) - (mainPrior.expense || 0);
+
+      // Monthly main account transactions
+      const mainMonthlyData = db.prepare(`
+        SELECT month,
+          SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
+          SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
+        FROM transactions
+        WHERE account_id = ? AND year = ? AND linked_transaction_id IS NULL
+        GROUP BY month
+      `).all(mainAccount.id, year) as { month: number, income: number, expense: number }[];
+
+      for (let m = 1; m <= 12; m++) {
+        const mData = mainMonthlyData.find(d => d.month === m);
+        runningBalance += (mData?.income || 0) - (mData?.expense || 0);
+        mainBalancePerMonth[m] = runningBalance;
+      }
+    }
+
     // Build 12-month array
     let currentCashAndSavings = initialBalance + priorBalance + priorSavings;
+    let cumulativeSavings = priorSavings;
+    let cumulativeStocks = 0;
     const result = [];
 
     for (let m = 1; m <= 12; m++) {
@@ -204,45 +261,26 @@ router.get('/yearly', (req, res) => {
       const savings = savData?.total || 0;
       const stockTotal = stockData?.total || 0;
       
-      // Balance is Income - Expense. 
-      // Savings are already part of Expense in current logic (since they are transactions with type='expense' usually?)
-      // Wait, if '저축' is 'expense' type in transactions, then 'balance' calculation (income - expense) ALREADY subtracts savings.
-      // So 'currentCashAndSavings' should be:
-      // If we consider Savings as Assets, then:
-      // Balance(Net Income) = Income - Expense(including Savings).
-      // So Cash increases by Balance.
-      // But Savings Asset increases by Savings amount.
-      // So Total Asset = Cash + Savings Asset.
-      // If 'expense' includes 'savings', then 'balance' is (Income - Consumption - Savings).
-      // So Cash = Previous Cash + (Income - Consumption - Savings).
-      // Savings Asset = Previous Savings + Savings.
-      // Total Asset = Cash + Savings Asset = Previous + Income - Consumption.
-      // Which matches (Income - Consumption(excluding savings)).
-      
-      // However, current 'balance' variable comes from 'monthlyData' which sums 'type=income' and 'type=expense'.
-      // If '저축' is 'expense', then 'balance' = Income - (Consumption + Savings).
-      // So 'balance' is pure cash flow.
-      // 'savings' variable is the Savings amount.
-      // 'currentCashAndSavings' logic: 
-      // cumulativeAssets += balance + savings;
-      // If Balance is (Inc - Exp), and Exp includes Sav.
-      // Then Balance + Sav = (Inc - (Cons + Sav)) + Sav = Inc - Cons.
-      // This correctly represents the Net Worth increase (ignoring stock price changes).
-      // So the logic `balance + savings` is correct IF 'balance' subtracts savings.
-      
       const balance = income - expense;
       currentCashAndSavings += balance + savings;
+      cumulativeSavings += savings;
+      cumulativeStocks += stockTotal;
       
-      const totalAssets = currentCashAndSavings + stockTotal;
+      // For main account: totalAssets = mainAccountBalance + cumulative savings + cumulative stocks
+      // For other accounts: only balance matters, no total asset
+      const mainAccountBalance = mainBalancePerMonth[m] || 0;
+      const totalAssets = isMainAccount ? (mainAccountBalance + cumulativeSavings + cumulativeStocks) : 0;
 
       result.push({ 
         month: m, 
         income, 
         expense, 
         balance, 
-        savings, 
-        stocks: stockTotal,
-        totalAssets 
+        savings: isMainAccount ? savings : 0, 
+        stocks: isMainAccount ? stockTotal : 0,
+        totalAssets,
+        mainAccountBalance: isMainAccount ? mainAccountBalance : 0,
+        isMainAccount
       });
     }
 

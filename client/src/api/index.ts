@@ -10,6 +10,7 @@ export const accountsApi = {
   create: (data: Omit<Account, 'id'>) => api.post<Account>('/accounts', data).then(res => res.data),
   update: (id: number, data: Omit<Account, 'id'>) => api.put<Account>(`/accounts/${id}`, data).then(res => res.data),
   delete: (id: number) => api.delete(`/accounts/${id}`),
+  setMain: (id: number) => api.patch(`/accounts/${id}/main`).then(res => res.data),
 };
 
 export const categoriesApi = {
@@ -55,6 +56,8 @@ export const statisticsApi = {
     savings: number;
     stocks: { ticker: string; name: string; buy_amount: number; shares: number }[];
     stockTotal: number;
+    mainAccountBalance: number;
+    isMainAccount: boolean;
     categoryBreakdown: { major: string; total: number }[];
     expenseBreakdown: { major: string; total: number; subs: { sub: string; total: number }[] }[];
     incomeBreakdown: { major: string; total: number; subs: { sub: string; total: number }[] }[];
@@ -63,7 +66,7 @@ export const statisticsApi = {
     year: number; month: number; income: number; expense: number;
   }[]>('/statistics/trend', { params: { months } }).then(res => res.data),
   getYearly: (year: number, accountIds?: number[]) => api.get<{
-    month: number; income: number; expense: number; balance: number; savings: number; stocks: number; totalAssets: number;
+    month: number; income: number; expense: number; balance: number; savings: number; stocks: number; totalAssets: number; mainAccountBalance: number; isMainAccount: boolean;
   }[]>('/statistics/yearly', { params: { year, accountIds: accountIds?.join(',') } }).then(res => res.data),
   getAssets: () => api.get<{
     cash: number;

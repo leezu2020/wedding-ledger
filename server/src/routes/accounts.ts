@@ -127,4 +127,26 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// PATCH /api/accounts/:id/main — Set as main account (auto-unsets others)
+router.patch('/:id/main', (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const account = db.prepare('SELECT id FROM accounts WHERE id = ?').get(id);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    db.transaction(() => {
+      db.prepare('UPDATE accounts SET is_main = 0 WHERE is_main = 1').run();
+      db.prepare('UPDATE accounts SET is_main = 1 WHERE id = ?').run(id);
+    })();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to set main account' });
+  }
+});
+
 export default router;

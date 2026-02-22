@@ -1,14 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { format } from 'date-fns';
 import { 
   PieChart, Pie, Cell, LineChart, Line,
   ComposedChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, RefreshCw } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Wallet, Scale, RefreshCw, ChevronDown } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { statisticsApi, accountsApi, stocksApi } from '../api';
 import type { Account } from '../types';
@@ -25,6 +24,8 @@ type MonthlyStats = {
   savings: number;
   stocks: { ticker: string; name: string; buy_amount: number; shares: number }[];
   stockTotal: number;
+  mainAccountBalance: number;
+  isMainAccount: boolean;
   expenseBreakdown: CategoryBreakdown[];
   incomeBreakdown: CategoryBreakdown[];
 };
@@ -37,6 +38,8 @@ type YearlyData = {
   savings: number;
   stocks: number;
   totalAssets: number;
+  mainAccountBalance: number;
+  isMainAccount: boolean;
 };
 
 // Custom Tooltip for Pie Chart — shows sub-category breakdown on hover
@@ -80,23 +83,25 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
   const [yearlyData, setYearlyData] = useState<YearlyData[]>([]);
 
-  // Fetch accounts on mount, default all selected
+  // Fetch accounts on mount, default to main account
   useEffect(() => {
     accountsApi.getAll().then(accs => {
       setAccounts(accs);
-      setSelectedAccountIds(accs.map(a => a.id));
+      const mainAcc = accs.find(a => a.is_main === 1);
+      setSelectedAccountId(mainAcc ? mainAcc.id : (accs.length > 0 ? accs[0].id : null));
     });
   }, []);
 
-  // Pass undefined when all selected (no filter), otherwise pass specific IDs
-  const accountIdsParam = selectedAccountIds.length === accounts.length
-    ? undefined
-    : selectedAccountIds;
+  // useMemo to stabilize the array reference (prevents useCallback/useEffect infinite loop)
+  const accountIdsParam = useMemo(
+    () => selectedAccountId ? [selectedAccountId] : undefined,
+    [selectedAccountId]
+  );
 
   const fetchMonthly = useCallback(async () => {
     setIsLoading(true);
@@ -123,10 +128,10 @@ export default function Dashboard() {
   }, [year, accountIdsParam]);
 
   useEffect(() => {
-    if (accounts.length === 0) return; // wait for accounts to load
+    if (!selectedAccountId) return; // wait for account selection
     if (activeTab === 'monthly') fetchMonthly();
     else fetchYearly();
-  }, [activeTab, fetchMonthly, fetchYearly, accounts.length]);
+  }, [activeTab, fetchMonthly, fetchYearly, selectedAccountId]);
 
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);
@@ -148,7 +153,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">대시보드</h2>
-          <HelpTooltip content="이체 거래는 수입/지출 합계에서 제외됩니다." />
+          <HelpTooltip content="메인 계좌: 이체 거래는 수입/지출에서 제외됩니다. 다른 계좌: 이체 거래도 수입/지출에 포함됩니다." />
         </div>
         <div className="flex items-center gap-4">
           {/* Tab Buttons */}
@@ -174,13 +179,21 @@ export default function Dashboard() {
               연도별
             </button>
           </div>
-          {/* Account Filter */}
-          <MultiSelectDropdown
-            label="계좌"
-            options={accounts.map(a => ({ id: a.id, label: a.name }))}
-            selectedIds={selectedAccountIds}
-            onChange={(ids) => setSelectedAccountIds(ids as number[])}
-          />
+          {/* Account Single Select */}
+          <div className="relative">
+            <select
+              value={selectedAccountId ?? ''}
+              onChange={(e) => setSelectedAccountId(Number(e.target.value))}
+              className="appearance-none pl-3 pr-8 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.is_main === 1 ? `⭐ ${a.name}` : a.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
           {/* Period Navigation */}
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
@@ -207,11 +220,14 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Stable ticker key to avoid infinite re-renders (stats.stocks is a new array each time)
+  const tickerKey = stats?.stocks?.map(s => s.ticker).sort().join(',') || '';
+
   useEffect(() => {
     if (stats?.stocks && stats.stocks.length > 0) {
       fetchPrices();
     }
-  }, [stats?.stocks]);
+  }, [tickerKey]);
 
   const fetchPrices = async () => {
     if (!stats?.stocks.length) return;
@@ -238,8 +254,9 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
   const stockPL = stockCurrentValue - stockPrincipal;
   const stockPLPercent = stockPrincipal > 0 ? (stockPL / stockPrincipal) * 100 : 0;
 
-  // Total Assets = Balance + Savings + Stock Current Value
-  const totalAssets = stats.balance + stats.savings + stockCurrentValue;
+  // Total Assets = Main Account Balance + Savings + Stock Current Value
+  const totalAssets = stats.mainAccountBalance + stats.savings + stockCurrentValue;
+  const isMainAccount = stats.isMainAccount;
 
   return (
     <>
@@ -286,7 +303,8 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           </div>
         </Card>
 
-        {/* Investments */}
+        {/* Investments — only for main account */}
+        {isMainAccount && (
         <Card className="bg-gradient-to-br from-violet-500 to-purple-600 text-white border-none">
           <div className="flex items-start justify-between">
             <div>
@@ -311,8 +329,10 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
             </div>
           </div>
         </Card>
+        )}
 
-        {/* Total Assets (Expanded) */}
+        {/* Total Assets (Expanded) — only for main account */}
+        {isMainAccount && (
         <Card className="md:col-span-2 bg-gradient-to-br from-slate-700 to-slate-800 text-white border-none">
           <div className="flex items-start justify-between">
             <div>
@@ -325,8 +345,8 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           </div>
           <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/10 px-1">
              <div>
-                <p className="text-xs text-slate-400">현금 자산 (잔액)</p>
-                <p className="font-semibold text-lg">₩{stats.balance.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">메인 계좌 잔액</p>
+                <p className="font-semibold text-lg">₩{stats.mainAccountBalance.toLocaleString()}</p>
              </div>
              <div>
                 <p className="text-xs text-slate-400">저축 자산</p>
@@ -338,6 +358,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
              </div>
           </div>
         </Card>
+        )}
       </div>
 
       {/* Pie Charts */}
@@ -430,11 +451,15 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
 function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
   if (!data.length) return <p className="text-center text-slate-400 py-12">데이터가 없습니다.</p>;
 
+  const isMainAccount = data[0]?.isMainAccount ?? false;
+
   return (
     <div className="space-y-6">
-      {/* Composed Chart: Total Assets (Line) + Monthly Balance (Bar) + Stocks (Area) */}
+      {/* Composed Chart: conditional content based on main account */}
       <Card>
-        <h3 className="text-lg font-bold mb-4">{year}년 자산 및 월별 정산</h3>
+        <h3 className="text-lg font-bold mb-4">
+          {year}년 {isMainAccount ? '자산 및 월별 정산' : '월별 정산'}
+        </h3>
         <div className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <ComposedChart data={data}>
@@ -451,13 +476,15 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
               />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke="#94A3B8"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
-              />
+              {isMainAccount && (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#94A3B8"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
+                />
+              )}
               <Tooltip
                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 formatter={(value: any, name: any) => [
@@ -478,32 +505,37 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 radius={[4, 4, 0, 0]}
                 opacity={0.5}
               />
-              <Bar
-                yAxisId="left"
-                dataKey="savings"
-                name="저축"
-                fill="#10B981"
-                radius={[4, 4, 0, 0]}
-                opacity={0.6}
-              />
-              {/* Show Stocks as an Area to visualize the investment portion base */}
-              <Bar
-                 yAxisId="right"
-                 dataKey="stocks"
-                 name="투자 자산"
-                 fill="#8B5CF6"
-                 radius={[2, 2, 0, 0]}
-                 opacity={0.3}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="totalAssets"
-                name="총 자산"
-                stroke="#6366F1"
-                strokeWidth={3}
-                dot={{ r: 4, fill: '#6366F1' }}
-              />
+              {isMainAccount && (
+                <Bar
+                  yAxisId="left"
+                  dataKey="savings"
+                  name="저축"
+                  fill="#10B981"
+                  radius={[4, 4, 0, 0]}
+                  opacity={0.6}
+                />
+              )}
+              {isMainAccount && (
+                <Bar
+                   yAxisId="right"
+                   dataKey="stocks"
+                   name="투자 자산"
+                   fill="#8B5CF6"
+                   radius={[2, 2, 0, 0]}
+                   opacity={0.3}
+                />
+              )}
+              {isMainAccount && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="totalAssets"
+                  name="총 자산"
+                  stroke="#6366F1"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: '#6366F1' }}
+                />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>

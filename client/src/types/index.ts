@@ -3,6 +3,7 @@ export type Account = {
   name: string;
   description?: string;
   initial_balance?: number;
+  is_main?: number;
 };
 
 export type Category = {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Loader2, Star } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -74,6 +74,15 @@ export default function AccountsPage() {
     }
   };
 
+  const handleSetMain = async (id: number) => {
+    try {
+      await accountsApi.setMain(id);
+      fetchAccounts();
+    } catch (error) {
+      console.error('Failed to set main account', error);
+    }
+  };
+
   const openModal = () => {
     setEditingAccount(null);
     setFormData({ name: '', description: '', initial_balance: 0 });
@@ -97,6 +106,15 @@ export default function AccountsPage() {
             <Card key={account.id} className="relative group hover:shadow-xl transition-shadow">
               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
+                  onClick={() => handleSetMain(account.id)}
+                  className={`p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                    account.is_main === 1 ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'
+                  }`}
+                  title={account.is_main === 1 ? '메인 계좌' : '메인 계좌로 설정'}
+                >
+                  <Star size={16} fill={account.is_main === 1 ? 'currentColor' : 'none'} />
+                </button>
+                <button 
                   onClick={() => handleEdit(account)}
                   className="p-1 text-slate-400 hover:text-violet-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
@@ -110,7 +128,10 @@ export default function AccountsPage() {
                 </button>
               </div>
               
-              <h3 className="text-xl font-semibold mb-2">{account.name}</h3>
+              <div className="flex items-center gap-2 mb-2">
+                {account.is_main === 1 && <Star size={16} className="text-amber-500" fill="currentColor" />}
+                <h3 className="text-xl font-semibold">{account.name}</h3>
+              </div>
               <p className="text-slate-500 dark:text-slate-400 text-sm">
                 {account.description || '설명 없음'}
               </p>

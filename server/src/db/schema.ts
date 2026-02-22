@@ -75,6 +75,13 @@ export const initDB = () => {
     console.log('Migration: added linked_transaction_id column');
   }
 
+  // Migration: add is_main column to accounts
+  const accColumns = db.pragma('table_info(accounts)') as { name: string }[];
+  if (!accColumns.some(c => c.name === 'is_main')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN is_main INTEGER DEFAULT 0');
+    console.log('Migration: added is_main column to accounts');
+  }
+
   // Ensure transfer categories exist for all current accounts
   const accounts = db.prepare('SELECT name FROM accounts').all() as { name: string }[];
   const insertCat = db.prepare(
