@@ -344,7 +344,7 @@ export default function InputPage() {
                     label="카테고리"
                     categories={categories}
                     value={newTransaction.category_id || ''}
-                    onChange={e => setNewTransaction({...newTransaction, category_id: Number(e.target.value)})}
+                    onChange={val => setNewTransaction({...newTransaction, category_id: val})}
                   />
                   <Input 
                     type="number" 
@@ -465,7 +465,7 @@ export default function InputPage() {
                                 <CategorySelect
                                   categories={categories}
                                   value={editFormTx.category_id!}
-                                  onChange={e => setEditFormTx({...editFormTx, category_id: Number(e.target.value)})}
+                                  onChange={val => setEditFormTx({...editFormTx, category_id: val})}
                                 />
                               </td>
                               <td className="px-2 py-2">
