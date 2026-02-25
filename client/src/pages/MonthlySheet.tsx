@@ -157,16 +157,16 @@ export default function MonthlySheet() {
             </button>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-center">
+            <div className="flex justify-between sm:block border-b border-white/10 sm:border-0 pb-2 sm:pb-0">
               <p className="text-white/80 text-sm">수입</p>
               <p className="text-lg font-bold text-emerald-100">{monthlyTotals.income.toLocaleString()}원</p>
             </div>
-            <div>
+            <div className="flex justify-between sm:block border-b border-white/10 sm:border-0 pb-2 sm:pb-0">
               <p className="text-white/80 text-sm">지출</p>
               <p className="text-lg font-bold text-rose-200">{monthlyTotals.expense.toLocaleString()}원</p>
             </div>
-            <div>
+            <div className="flex justify-between sm:block pt-1 sm:pt-0">
               <p className="text-white/80 text-sm">합계</p>
               <p className={`text-lg font-bold ${monthlyTotals.balance >= 0 ? 'text-white' : 'text-rose-200'}`}>
                 {monthlyTotals.balance >= 0 ? '' : ''}{monthlyTotals.balance.toLocaleString()}원
@@ -231,17 +231,17 @@ export default function MonthlySheet() {
                       {isCurrentMonth && summary && (summary.income > 0 || summary.expense > 0 || summary.savings > 0) && (
                         <div className="mt-1 space-y-0.5">
                           {summary.income > 0 && (
-                            <p className="text-[10px] text-emerald-600 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-emerald-600 font-medium truncate leading-tight">
                               {summary.income.toLocaleString()}
                             </p>
                           )}
                           {summary.expense > 0 && (
-                            <p className="text-[10px] text-rose-500 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-rose-500 font-medium truncate leading-tight">
                               {summary.expense.toLocaleString()}
                             </p>
                           )}
                           {summary.savings > 0 && (
-                            <p className="text-[10px] text-blue-500 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-blue-500 font-medium truncate leading-tight">
                               {summary.savings.toLocaleString()}
                             </p>
                           )}

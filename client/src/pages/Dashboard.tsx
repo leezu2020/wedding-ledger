@@ -150,12 +150,12 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">대시보드</h2>
           <HelpTooltip content="메인 계좌: 이체 거래는 수입/지출에서 제외됩니다. 다른 계좌: 이체 거래도 수입/지출에 포함됩니다." />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
           {/* Tab Buttons */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             <button

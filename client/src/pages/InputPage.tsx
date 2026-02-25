@@ -395,7 +395,7 @@ export default function InputPage() {
             {/* List Table with Inline Editing */}
             <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-sm text-left">
-                <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium">
+                <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium whitespace-nowrap">
                   <tr>
                     {inputType !== 'savings' ? (
                       <>

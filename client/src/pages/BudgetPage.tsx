@@ -108,9 +108,9 @@ export default function BudgetPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">월별 예산 관리</h2>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
             <span className="px-4 font-semibold">{format(currentDate, 'yyyy-MM')}</span>

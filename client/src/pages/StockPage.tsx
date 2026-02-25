@@ -185,9 +185,9 @@ export default function StockPage() {
          </div>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800 gap-4">
         <h3 className="text-xl font-bold">월별 관리</h3>
-        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shadow-inner">
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shadow-inner w-fit">
           <Button variant="outline" size="sm" onClick={() => changeMonth(-1)} className="border-none bg-white dark:bg-slate-700 shadow-sm">&lt;</Button>
           <span className="px-4 font-bold text-slate-700 dark:text-slate-200">{format(currentDate, 'yyyy-MM')}</span>
           <Button variant="outline" size="sm" onClick={() => changeMonth(1)} className="border-none bg-white dark:bg-slate-700 shadow-sm">&gt;</Button>
@@ -268,7 +268,7 @@ export default function StockPage() {
         {/* List */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium">
+            <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-500 font-medium whitespace-nowrap">
               <tr>
                 <th className="px-4 py-3 w-20">일자</th>
                 <th className="px-4 py-3">종목코드</th>
