@@ -60,6 +60,7 @@ export type Stock = {
   id: number;
   year: number;
   month: number;
+  day?: number;
   ticker: string;
   name?: string;
   buy_amount: number;

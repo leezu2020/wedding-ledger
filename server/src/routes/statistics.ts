@@ -159,7 +159,7 @@ router.get('/trend', (req, res) => {
 });
 
 // GET /api/statistics/yearly?year=2026&accountIds=1,2,3
-router.get('/yearly', (req, res) => {
+router.get('/yearly', async (req, res) => {
   const { year, accountIds } = req.query;
 
   if (!year) {
@@ -212,12 +212,18 @@ router.get('/yearly', (req, res) => {
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
 
-    // Monthly stocks (snapshot) for this year
-    const monthlyStocks = db.prepare(`
-      SELECT month, SUM(buy_amount) as total FROM stocks
-      WHERE year = ?
-      GROUP BY month
-    `).all(year) as { month: number, total: number }[];
+    // Fetch all stock buy records up to the given year
+    const allStocks = db.prepare(`
+      SELECT year, month, ticker, buy_amount, shares FROM stocks
+      WHERE year <= ?
+    `).all(year) as { year: number, month: number, ticker: string, buy_amount: number, shares: number }[];
+
+    const tickers = Array.from(new Set(allStocks.map(s => s.ticker)));
+    let currentPrices: Record<string, number> = {};
+    if (tickers.length > 0) {
+      const { stockService } = await import('../services/yahooFinance');
+      currentPrices = await stockService.getBulkPrices(tickers);
+    }
 
     // Main account balance per month (for totalAssets when main account is selected)
     let mainBalancePerMonth: Record<number, number> = {};
@@ -251,21 +257,25 @@ router.get('/yearly', (req, res) => {
     }
 
     // Build 12-month array
-    let cumulativeStocks = 0;
     const result = [];
     // Get savings total at end of previous year for reference
     const prevYearSavings = getSavingsTotal(Number(year) - 1, 12);
 
     for (let m = 1; m <= 12; m++) {
       const data = monthlyData.find(d => d.month === m);
-      const stockData = monthlyStocks.find(s => s.month === m);
       
       const income = data?.income || 0;
       const expense = data?.expense || 0;
-      const stockTotal = stockData?.total || 0;
-      
       const balance = income - expense;
-      cumulativeStocks += stockTotal;
+      
+      // Calculate cumulative stock value strictly up to this month
+      let cumulativeStocksValue = 0;
+      const stocksUpToThisMonth = allStocks.filter(s => s.year < Number(year) || (s.year === Number(year) && s.month <= m));
+      
+      for (const stock of stocksUpToThisMonth) {
+         const currentPrice = currentPrices[stock.ticker];
+         cumulativeStocksValue += (currentPrice !== undefined) ? (currentPrice * stock.shares) : stock.buy_amount;
+      }
       
       // Cumulative savings total up to this month (same value as monthly tab)
       const cumulativeSavings = savingsByMonth[m];
@@ -273,10 +283,10 @@ router.get('/yearly', (req, res) => {
       const prevSavings = m === 1 ? prevYearSavings : savingsByMonth[m - 1];
       const savings = cumulativeSavings - prevSavings;
       
-      // For main account: totalAssets = mainAccountBalance + cumulative savings + cumulative stocks
+      // For main account: totalAssets = mainAccountBalance + cumulative savings + cumulative stocks (evaluated)
       // For other accounts: only balance matters, no total asset
       const mainAccountBalance = mainBalancePerMonth[m] || 0;
-      const totalAssets = isMainAccount ? (mainAccountBalance + cumulativeSavings + cumulativeStocks) : 0;
+      const totalAssets = isMainAccount ? (mainAccountBalance + cumulativeSavings + cumulativeStocksValue) : 0;
 
       result.push({ 
         month: m, 
@@ -284,7 +294,7 @@ router.get('/yearly', (req, res) => {
         expense, 
         balance, 
         savings: isMainAccount ? cumulativeSavings : 0, 
-        stocks: isMainAccount ? stockTotal : 0,
+        stocks: isMainAccount ? cumulativeStocksValue : 0,
         totalAssets,
         mainAccountBalance: isMainAccount ? mainAccountBalance : 0,
         isMainAccount

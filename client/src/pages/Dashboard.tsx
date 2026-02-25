@@ -309,17 +309,17 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                 <p className="text-violet-100 text-sm font-medium">총 투자금</p>
+                 <p className="text-violet-100 text-sm font-medium">해당 월 투자원금</p>
                  <button onClick={fetchPrices} disabled={isRefreshing} className="p-0.5 hover:bg-white/10 rounded-full transition-colors">
                     <RefreshCw size={12} className={`text-violet-200 ${isRefreshing ? 'animate-spin' : ''}`} />
                  </button>
               </div>
-              <h3 className="text-2xl font-bold mt-1">₩{stockCurrentValue.toLocaleString()}</h3>
-              <p className="text-xs text-violet-100 mt-1">
-                 원금 ₩{stockPrincipal.toLocaleString()} 
+              <h3 className="text-2xl font-bold mt-1">₩{stockPrincipal.toLocaleString()}</h3>
+              <p className="text-sm font-medium mt-1">
+                 평가금 ₩{stockCurrentValue.toLocaleString()}  
                  {stockPrincipal > 0 && (
-                   <span className={`ml-2 font-bold ${stockPL >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                     {stockPL >= 0 ? '+' : ''}{stockPLPercent.toFixed(1)}%
+                   <span className={`ml-2 font-bold ${stockPL >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                     {stockPL >= 0 ? '+' : ''}₩{stockPL.toLocaleString()} ({stockPLPercent.toFixed(1)}%)
                    </span>
                  )}
               </p>
@@ -505,9 +505,9 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                 yAxisId="left"
                 dataKey="balance"
                 name="월별 정산"
-                fill="#818CF8"
+                fill="#3B82F6"
                 radius={[4, 4, 0, 0]}
-                opacity={0.5}
+                opacity={0.8}
               />
               {isMainAccount && (
                 <Bar
@@ -516,7 +516,7 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                   name="저축"
                   fill="#10B981"
                   radius={[4, 4, 0, 0]}
-                  opacity={0.6}
+                  opacity={0.8}
                 />
               )}
               {isMainAccount && (
@@ -524,9 +524,9 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                    yAxisId="right"
                    dataKey="stocks"
                    name="투자 자산"
-                   fill="#8B5CF6"
+                   fill="#F59E0B"
                    radius={[2, 2, 0, 0]}
-                   opacity={0.3}
+                   opacity={0.8}
                 />
               )}
               {isMainAccount && (
@@ -535,9 +535,9 @@ function YearlyView({ data, year }: { data: YearlyData[]; year: number }) {
                   type="monotone"
                   dataKey="totalAssets"
                   name="총 자산"
-                  stroke="#6366F1"
+                  stroke="#4F46E5"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: '#6366F1' }}
+                  dot={{ r: 4, fill: '#4F46E5' }}
                 />
               )}
             </ComposedChart>

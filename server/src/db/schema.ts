@@ -58,6 +58,7 @@ export const initDB = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,
+      day INTEGER,
       ticker TEXT NOT NULL,
       name TEXT,
       buy_amount INTEGER NOT NULL,
@@ -105,6 +106,14 @@ export const initDB = () => {
   if (spColumns.length > 0 && !spColumns.some(c => c.name === 'initial_paid')) {
     db.exec('ALTER TABLE savings_products ADD COLUMN initial_paid INTEGER DEFAULT 0');
     console.log('Migration: added initial_paid column to savings_products');
+  }
+
+  // Migration: add day column to stocks
+  const stockColumns = db.pragma('table_info(stocks)') as { name: string }[];
+  if (stockColumns.length > 0 && !stockColumns.some(c => c.name === 'day')) {
+    db.exec('ALTER TABLE stocks ADD COLUMN day INTEGER');
+    db.exec('UPDATE stocks SET year = 2026, month = 1, day = 1');
+    console.log('Migration: added day column to stocks and set default dates');
   }
 
   // Ensure transfer categories exist for all current accounts

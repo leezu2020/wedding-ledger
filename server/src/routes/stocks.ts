@@ -22,6 +22,17 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/stocks/all
+router.get('/all', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM stocks');
+    const stocks = stmt.all();
+    res.json(stocks);
+  } catch (error) {
+    sendError(res, '전체 주식 조회 실패', error);
+  }
+});
+
 // GET /api/stocks/prices?tickers=AAPL,TSLA,005930.KS
 router.get('/prices', async (req, res) => {
   const { tickers } = req.query;
@@ -42,7 +53,7 @@ router.get('/prices', async (req, res) => {
 
 // POST /api/stocks
 router.post('/', (req, res) => {
-  const { year, month, ticker, name, buy_amount, shares } = req.body;
+  const { year, month, day, ticker, name, buy_amount, shares } = req.body;
 
   if (!year || !month || !ticker || !buy_amount || shares === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -50,10 +61,10 @@ router.post('/', (req, res) => {
 
   try {
     const stmt = db.prepare(`
-      INSERT INTO stocks (year, month, ticker, name, buy_amount, shares)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO stocks (year, month, day, ticker, name, buy_amount, shares)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(year, month, ticker, name, buy_amount, shares);
+    const info = stmt.run(year, month, day || null, ticker, name, buy_amount, shares);
     res.status(201).json({ id: info.lastInsertRowid, ...req.body });
   } catch (error) {
     sendError(res, '주식 추가 실패', error);

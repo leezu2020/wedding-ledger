@@ -52,6 +52,7 @@ export const savingsProductsApi = {
 
 export const stocksApi = {
   getAll: (year: number, month: number) => api.get<Stock[]>('/stocks', { params: { year, month } }).then(res => res.data),
+  getAllTime: () => api.get<Stock[]>('/stocks/all').then(res => res.data),
   create: (data: Omit<Stock, 'id'>) => api.post<Stock>('/stocks', data).then(res => res.data),
   delete: (id: number) => api.delete(`/stocks/${id}`),
   getPrices: (tickers: string[]) => api.get<Record<string, number>>('/stocks/prices', { params: { tickers: tickers.join(',') } }).then(res => res.data),
