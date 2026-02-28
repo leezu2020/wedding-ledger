@@ -111,7 +111,7 @@ export function MultiSelectDropdown({
                   }`}>
                     {checked && <Check size={12} />}
                   </div>
-                  <span className="truncate">{opt.label}</span>
+                  <span className="truncate" title={opt.label}>{opt.label}</span>
                 </button>
               );
             })

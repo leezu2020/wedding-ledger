@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -31,6 +31,32 @@ export default function StockPage() {
     buy_amount: '',
     shares: ''
   });
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Derived unique stocks from all-time data for suggestions
+  const uniqueStocks = useMemo(() => {
+    const map = new Map<string, { ticker: string; name: string }>();
+    allTimeStocks.forEach(s => {
+      // Prioritize entries that have a valid name if there are multiple entries for the same ticker
+      const existing = map.get(s.ticker);
+      if (!existing || (!existing.name && s.name)) {
+        map.set(s.ticker, { ticker: s.ticker, name: s.name || '' });
+      }
+    });
+    return Array.from(map.values());
+  }, [allTimeStocks]);
+
+  // Compute suggestions based on current name input
+  const suggestions = useMemo(() => {
+    if (!newStock.name.trim()) return [];
+    const lowerQuery = newStock.name.toLowerCase();
+    
+    return uniqueStocks.filter(
+      s => (s.name && s.name.toLowerCase().includes(lowerQuery)) || 
+           s.ticker.toLowerCase().includes(lowerQuery)
+    ).slice(0, 5); // Limit to top 5 suggestions
+  }, [newStock.name, uniqueStocks]);
 
   useEffect(() => {
     fetchStocks();
@@ -242,12 +268,42 @@ export default function StockPage() {
             value={newStock.ticker}
             onChange={e => setNewStock({...newStock, ticker: e.target.value})}
           />
-          <Input 
-            label="종목명 (선택)" 
-            placeholder="삼성전자"
-            value={newStock.name}
-            onChange={e => setNewStock({...newStock, name: e.target.value})}
-          />
+          <div className="relative">
+            <Input 
+              label="종목명 (선택)" 
+              placeholder="예: 삼성전자"
+              value={newStock.name}
+              onChange={e => {
+                setNewStock({...newStock, name: e.target.value});
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            />
+            
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                {suggestions.map((s, idx) => (
+                  <button
+                    key={`${s.ticker}-${idx}`}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex justify-between items-center"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur
+                      setNewStock({...newStock, name: s.name, ticker: s.ticker});
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    <span className="font-medium text-slate-700 dark:text-slate-200 truncate pr-2" title={s.name || '이름 없음'}>
+                       {s.name || '이름 없음'}
+                    </span>
+                    <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                       {s.ticker}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Input 
             type="number"
             label="총 매수금" 

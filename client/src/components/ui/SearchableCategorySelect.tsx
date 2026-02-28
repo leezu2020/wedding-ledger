@@ -147,7 +147,7 @@ export function SearchableCategorySelect({
         className="flex items-center justify-between w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:border-violet-400 focus-within:border-violet-500 focus-within:ring-1 focus-within:ring-violet-500"
         onClick={() => setIsOpen(true)}
       >
-        <div className="flex-1 truncate">
+        <div className="flex-1 truncate" title={value.length > 0 ? value.map(getLabel).join(', ') : ''}>
           {value.length > 0 ? (
             <span className="font-medium">
               {value.map(getLabel).join(', ')}

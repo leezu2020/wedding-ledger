@@ -58,7 +58,7 @@ export function CategorySelect({ label, error, categories, value, onChange, clas
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className="truncate">
+        <span className="truncate" title={displayValue || '카테고리 선택'}>
           {displayValue || '카테고리 선택'}
         </span>
         <ChevronDown size={16} className="text-slate-400 shrink-0 ml-2" />

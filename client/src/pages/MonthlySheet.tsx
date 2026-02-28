@@ -313,17 +313,17 @@ export default function MonthlySheet() {
                       {isCurrentMonth && summary && (summary.income > 0 || summary.expense > 0 || summary.savings > 0) && (
                         <div className="mt-1 space-y-0.5">
                           {summary.income > 0 && (
-                            <p className="text-[9px] sm:text-[10px] text-emerald-600 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-emerald-600 font-medium truncate leading-tight" title={`수입: ${summary.income.toLocaleString()}원`}>
                               {summary.income.toLocaleString()}
                             </p>
                           )}
                           {summary.expense > 0 && (
-                            <p className="text-[9px] sm:text-[10px] text-rose-500 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-rose-500 font-medium truncate leading-tight" title={`지출: ${summary.expense.toLocaleString()}원`}>
                               {summary.expense.toLocaleString()}
                             </p>
                           )}
                           {summary.savings > 0 && (
-                            <p className="text-[9px] sm:text-[10px] text-blue-500 font-medium truncate leading-tight">
+                            <p className="text-[9px] sm:text-[10px] text-blue-500 font-medium truncate leading-tight" title={`저축: ${summary.savings.toLocaleString()}원`}>
                               {summary.savings.toLocaleString()}
                             </p>
                           )}
