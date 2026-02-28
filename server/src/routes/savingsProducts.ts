@@ -175,13 +175,13 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   const { type, bank, name, pay_day, start_date, interest_rate, interest_type, term_months, amount, tax_type, memo, initial_paid } = req.body;
 
-  if (!type || !bank || !start_date || interest_rate === undefined || !term_months || !amount) {
+  if (!type || !bank || !name || !start_date || interest_rate === undefined || !term_months || !amount) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
     const typeLabel = type === 'savings_plan' ? '적금' : '예금';
-    const categoryMiddle = `${bank}(${typeLabel})`;
+    const categoryMiddle = `${name}(${typeLabel})`;
 
     // Use transaction to ensure both category and product are created
     const result = db.transaction(() => {
@@ -224,12 +224,19 @@ router.put('/:id', (req, res) => {
   const { id } = req.params;
   const { type, bank, name, pay_day, start_date, interest_rate, interest_type, term_months, amount, tax_type, memo, is_active, initial_paid } = req.body;
 
-  if (!type || !bank || !start_date || interest_rate === undefined || !term_months || !amount) {
+  if (!type || !bank || !name || !start_date || interest_rate === undefined || !term_months || !amount) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
+    const typeLabel = type === 'savings_plan' ? '적금' : '예금';
+    const categoryMiddle = `${name}(${typeLabel})`;
+
     db.transaction(() => {
+      // 1. Get existing product to find its category_id
+      const existingProduct = db.prepare('SELECT category_id FROM savings_products WHERE id = ?').get(id) as { category_id: number } | undefined;
+
+      // 2. Update Product
       const stmt = db.prepare(`
         UPDATE savings_products SET
           type = ?, bank = ?, name = ?, pay_day = ?, start_date = ?, interest_rate = ?, 
@@ -240,6 +247,13 @@ router.put('/:id', (req, res) => {
         type, bank, name || null, pay_day || null, start_date, interest_rate,
         interest_type || 'simple', term_months, amount, tax_type || '일반과세', memo || null, is_active !== undefined ? is_active : 1, initial_paid || 0, id
       );
+
+      // 3. Update Category name representation
+      if (existingProduct && existingProduct.category_id) {
+        db.prepare(`
+          UPDATE categories SET middle = ? WHERE id = ?
+        `).run(categoryMiddle, existingProduct.category_id);
+      }
     })();
 
     res.json({ id, ...req.body });

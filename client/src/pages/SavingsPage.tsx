@@ -148,8 +148,8 @@ export default function SavingsPage() {
                   <div key={p.id} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-slate-700 dark:text-slate-200">{p.bank}({p.type === 'savings_plan' ? '적금' : '예금'})</span>
-                        {p.name && <span className="text-sm text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded">{p.name}</span>}
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{p.name || p.bank}({p.type === 'savings_plan' ? '적금' : '예금'})</span>
+                        {p.bank && <span className="text-sm text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded">{p.bank}</span>}
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-400">
                         {p.type === 'savings_plan' 
@@ -185,7 +185,7 @@ export default function SavingsPage() {
                 <thead className="bg-slate-100 dark:bg-slate-700/50 text-slate-600 font-medium border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-3">구분</th>
-                    <th className="px-3 py-3">은행</th>
+                    <th className="px-3 py-3 w-32">저축명(은행)</th>
                     <th className="px-3 py-3 w-16 text-center">납입일</th>
                     <th className="px-3 py-3">시작일</th>
                     <th className="px-3 py-3 text-right">이율</th>
@@ -221,7 +221,10 @@ export default function SavingsPage() {
                             />
                           </td>
                           <td className="px-2 py-2">
-                            <Input className="w-24 h-8 text-sm" value={editForm.bank || ''} onChange={e => setEditForm({...editForm, bank: e.target.value})} />
+                            <div className="flex flex-col gap-1">
+                              <Input placeholder="저축명" className="w-28 h-8 text-sm" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                              <Input placeholder="은행명" className="w-28 h-6 text-xs" value={editForm.bank || ''} onChange={e => setEditForm({...editForm, bank: e.target.value})} />
+                            </div>
                           </td>
                           <td className="px-2 py-2">
                             <Input type="number" className="w-16 h-8 text-sm" value={editForm.pay_day || ''} onChange={e => setEditForm({...editForm, pay_day: Number(e.target.value)})} />
@@ -280,7 +283,10 @@ export default function SavingsPage() {
                             {p.type === 'savings_plan' ? '적금' : '예금'}
                           </span>
                         </td>
-                        <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-200">{p.bank}</td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium text-slate-800 dark:text-slate-200">{p.name || p.bank}</div>
+                          <div className="text-xs text-slate-500">{p.bank}</div>
+                        </td>
                         <td className="px-3 py-3 text-center">{p.pay_day || '-'}</td>
                         <td className="px-3 py-3">{p.start_date.substring(5).replace('-','/')}</td> {/* MM/DD format */}
                         <td className="px-3 py-3 text-right">{p.interest_rate}%</td>
@@ -320,7 +326,10 @@ export default function SavingsPage() {
                       />
                     </td>
                     <td className="px-2 py-3 border-t border-slate-200 dark:border-slate-700">
-                      <Input placeholder="은행명" className="w-24 h-8 text-sm" value={newProduct.bank || ''} onChange={e => setNewProduct({...newProduct, bank: e.target.value})} />
+                      <div className="flex flex-col gap-1">
+                        <Input placeholder="저축명" className="w-28 h-8 text-sm" value={newProduct.name || ''} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                        <Input placeholder="은행명" className="w-28 h-6 text-xs" value={newProduct.bank || ''} onChange={e => setNewProduct({...newProduct, bank: e.target.value})} />
+                      </div>
                     </td>
                     <td className="px-2 py-3 border-t border-slate-200 dark:border-slate-700">
                       <Input placeholder="일" type="number" className="w-16 h-8 text-sm text-center" value={newProduct.pay_day || ''} onChange={e => setNewProduct({...newProduct, pay_day: Number(e.target.value)})} />
