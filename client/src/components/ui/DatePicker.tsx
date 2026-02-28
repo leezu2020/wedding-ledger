@@ -44,7 +44,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
           min={min}
           max={max}
           className={cn(
-            'date-picker-clean flex h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white dark:bg-slate-900',
+            'date-picker-clean flex h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white',
             error && 'border-rose-500 focus:ring-rose-500',
             className
           )}

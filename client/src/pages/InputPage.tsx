@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Loader2, Plus, Trash2, Edit2, X, Save, ArrowUpDown, ArrowUp, ArrowDown, Wallet } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, X, Save, ArrowUpDown, ArrowUp, ArrowDown, Wallet, Search } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { DatePicker } from '../components/ui/DatePicker';
 import { CategorySelect } from '../components/ui/CategorySelect';
+import { SearchableCategorySelect } from '../components/ui/SearchableCategorySelect';
 import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
 import { 
   transactionsApi, 
@@ -59,6 +60,13 @@ export default function InputPage() {
   // Creation Form State
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const [createDate, setCreateDate] = useState(todayStr);
+
+  // Detailed Search State
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchCategories, setSearchCategories] = useState<Category[]>([]);
+  const [searchDesc, setSearchDesc] = useState('');
+  const [searchMinAmt, setSearchMinAmt] = useState<number | ''>('');
+  const [searchMaxAmt, setSearchMaxAmt] = useState<number | ''>('');
   
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     amount: 0,
@@ -261,6 +269,36 @@ export default function InputPage() {
         const parentMatch = t.major && selectedMajorCategories.has(t.major);
         return t.account_id === selectedAccountId && (directMatch || parentMatch);
       });
+      
+      // Detailed Search Filters
+      if (searchCategories.length > 0) {
+        data = data.filter(t => {
+          return searchCategories.some(searchCategory => {
+            if (!searchCategory.sub) {
+              // Major category search
+              return t.major === searchCategory.major;
+            } else {
+              // Exact category match
+              return t.category_id === searchCategory.id;
+            }
+          });
+        });
+      }
+      
+      if (searchDesc.trim()) {
+        const lowerDesc = searchDesc.toLowerCase();
+        data = data.filter(t => t.description && t.description.toLowerCase().includes(lowerDesc));
+      }
+      
+      if (searchMinAmt !== '') {
+        const min = Number(searchMinAmt);
+        data = data.filter(t => t.amount >= min);
+      }
+      
+      if (searchMaxAmt !== '') {
+        const max = Number(searchMaxAmt);
+        data = data.filter(t => t.amount <= max);
+      }
     }
 
     // 2. Sort
@@ -281,7 +319,7 @@ export default function InputPage() {
       const compare = valA > valB ? 1 : -1;
       return sortConfig.direction === 'asc' ? compare : -compare;
     });
-  }, [transactions, savings, inputType, selectedAccountId, selectedCategoryIds, sortConfig]);
+  }, [transactions, savings, inputType, selectedAccountId, selectedCategoryIds, sortConfig, searchCategories, searchDesc, searchMinAmt, searchMaxAmt]);
 
   const handleSort = (key: 'date' | 'amount') => {
     setSortConfig(current => ({
@@ -301,10 +339,12 @@ export default function InputPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{title}</h2>
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
-          <span className="text-lg font-semibold">{format(currentDate, 'yyyy-MM')}</span>
-          <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
+            <span className="text-lg font-semibold">{format(currentDate, 'yyyy-MM')}</span>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+          </div>
         </div>
       </div>
 
@@ -391,6 +431,71 @@ export default function InputPage() {
                 </>
               )}
             </div>
+
+            {/* Detailed Search Toggle Button */}
+            {inputType !== 'savings' && (
+              <div className="flex justify-end mt-1 mb-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  className={`bg-white dark:bg-slate-800 ${isSearchOpen ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  <Search size={14} className="mr-1.5" /> 상세 필터
+                </Button>
+              </div>
+            )}
+
+            {/* Detailed Search Accordion */}
+            {inputType !== 'savings' && isSearchOpen && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">상세 검색</h3>
+                  <button onClick={() => { setSearchCategories([]); setSearchDesc(''); setSearchMinAmt(''); setSearchMaxAmt(''); }} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1">
+                    <X size={12} /> 필터 초기화
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">카테고리</label>
+                    <SearchableCategorySelect
+                      categories={categories}
+                      value={searchCategories}
+                      onChange={setSearchCategories}
+                      placeholder="분류 검색 (ex. 식비, 카페...)"
+                    />
+                  </div>
+                  <div>
+                    <Input 
+                      label="내용" 
+                      placeholder="검색어 입력..."
+                      value={searchDesc}
+                      onChange={e => setSearchDesc(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">금액 범위</label>
+                    <div className="flex items-center gap-2">
+                       <input 
+                          type="number"
+                          placeholder="0"
+                          className="w-full h-[38px] px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 hover:border-violet-400 transition-colors"
+                          value={searchMinAmt}
+                          onChange={e => setSearchMinAmt(e.target.value ? Number(e.target.value) : '')}
+                       />
+                       <span className="text-slate-400">~</span>
+                       <input 
+                          type="number"
+                          placeholder="최대"
+                          className="w-full h-[38px] px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 hover:border-violet-400 transition-colors"
+                          value={searchMaxAmt}
+                          onChange={e => setSearchMaxAmt(e.target.value ? Number(e.target.value) : '')}
+                       />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* List Table with Inline Editing */}
             <div className="overflow-x-auto min-h-[400px]">

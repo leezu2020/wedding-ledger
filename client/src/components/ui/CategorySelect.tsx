@@ -51,7 +51,7 @@ export function CategorySelect({ label, error, categories, value, onChange, clas
       )}
       <div 
         className={cn(
-          'flex items-center justify-between h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm cursor-pointer dark:text-white dark:bg-slate-900',
+          'flex items-center justify-between h-10 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm cursor-pointer dark:text-white',
           error && 'border-rose-500',
           isOpen && 'ring-2 ring-violet-500 border-violet-500',
           !displayValue && 'text-slate-500'
