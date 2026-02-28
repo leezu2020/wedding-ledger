@@ -63,6 +63,8 @@ export const statisticsApi = {
     income: number;
     expense: number;
     balance: number;
+    transferIncome: number;
+    transferExpense: number;
     savings: number;
     stocks: { ticker: string; name: string; buy_amount: number; shares: number }[];
     stockTotal: number;

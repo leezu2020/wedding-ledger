@@ -56,27 +56,38 @@ router.get('/monthly', (req, res) => {
     const transferFilter = isMainAccount ? ' AND linked_transaction_id IS NULL' : '';
     const transferFilterT = isMainAccount ? ' AND t.linked_transaction_id IS NULL' : '';
 
-    // Total Income, Expense
+    // Total Income, Expense (now includes transfers for main account)
     const totals = db.prepare(`
       SELECT type, SUM(amount) as total
       FROM transactions
-      WHERE year = ? AND month = ?${txFilterSimple.clause}${transferFilter}
+      WHERE year = ? AND month = ?${txFilterSimple.clause}
       GROUP BY type
     `).all(year, month, ...txFilterSimple.params) as { type: string, total: number }[];
     
+    // Transfer-only totals
+    const transferTotals = db.prepare(`
+      SELECT type, SUM(amount) as total
+      FROM transactions
+      WHERE year = ? AND month = ?${txFilterSimple.clause} AND linked_transaction_id IS NOT NULL
+      GROUP BY type
+    `).all(year, month, ...txFilterSimple.params) as { type: string, total: number }[];
+
     const income = totals.find(t => t.type === 'income')?.total || 0;
     const expense = totals.find(t => t.type === 'expense')?.total || 0;
     const balance = income - expense;
 
+    const transferIncome = transferTotals.find(t => t.type === 'income')?.total || 0;
+    const transferExpense = transferTotals.find(t => t.type === 'expense')?.total || 0;
+
     // Savings Total (cumulative up to selected year/month)
     const savingsTotal = getSavingsTotal(Number(year), Number(month));
 
-    // Category Breakdown with sub-categories
+    // Category Breakdown with sub-categories (includes transfers naturally)
     const details = db.prepare(`
       SELECT c.major, c.middle as sub, t.type, SUM(t.amount) as total
       FROM transactions t
       JOIN categories c ON t.category_id = c.id
-      WHERE t.year = ? AND t.month = ?${txFilter.clause}${transferFilterT}
+      WHERE t.year = ? AND t.month = ?${txFilter.clause}
       GROUP BY c.major, c.middle, t.type
       ORDER BY total DESC
     `).all(year, month, ...txFilter.params) as { major: string, sub: string | null, type: string, total: number }[];
@@ -109,7 +120,7 @@ router.get('/monthly', (req, res) => {
     
     const stockTotal = stocks.reduce((sum, s) => sum + s.buy_amount, 0);
 
-    // Main account balance (initial_balance + cumulative income - expense up to this month)
+    // Main account balance (initial_balance + cumulative income - expense up to this month) INCLUDING transfers
     let mainAccountBalance = 0;
     if (mainAccount) {
       const mainInitial = mainAccount.initial_balance || 0;
@@ -118,13 +129,14 @@ router.get('/monthly', (req, res) => {
           SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
           SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
         FROM transactions
-        WHERE account_id = ? AND (year < ? OR (year = ? AND month <= ?)) AND linked_transaction_id IS NULL
+        WHERE account_id = ? AND (year < ? OR (year = ? AND month <= ?))
       `).get(mainAccount.id, year, year, month) as { income: number, expense: number };
       mainAccountBalance = mainInitial + (mainTx.income || 0) - (mainTx.expense || 0);
     }
 
     res.json({
       income, expense, balance,
+      transferIncome, transferExpense,
       savings: savingsTotal,
       stocks, stockTotal,
       mainAccountBalance, isMainAccount,
@@ -146,7 +158,6 @@ router.get('/trend', (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE linked_transaction_id IS NULL
       GROUP BY year, month
       ORDER BY year DESC, month DESC
       LIMIT ?
@@ -178,8 +189,6 @@ router.get('/yearly', async (req, res) => {
     // Check if selected account is the main account
     const mainAccount = db.prepare('SELECT id, initial_balance FROM accounts WHERE is_main = 1').get() as { id: number, initial_balance: number } | undefined;
     const isMainAccount = mainAccount ? (accountIds ? String(accountIds).split(',').map(Number).includes(mainAccount.id) : true) : false;
-    // For main account: exclude transfers. For others: include them.
-    const transferFilter = isMainAccount ? ' AND linked_transaction_id IS NULL' : '';
 
     // Initial balance from accounts
     const initialBalance = (db.prepare(
@@ -192,7 +201,7 @@ router.get('/yearly', async (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year < ?${accFilter.clause}${transferFilter}
+      WHERE year < ?${accFilter.clause}
     `).get(year, ...accFilter.params) as { income: number, expense: number };
     const priorBalance = (prior.income || 0) - (prior.expense || 0);
 
@@ -208,7 +217,7 @@ router.get('/yearly', async (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE year = ?${accFilter.clause}${transferFilter}
+      WHERE year = ?${accFilter.clause}
       GROUP BY month
     `).all(year, ...accFilter.params) as { month: number, income: number, expense: number }[];
 
@@ -235,7 +244,7 @@ router.get('/yearly', async (req, res) => {
           SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
           SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
         FROM transactions
-        WHERE account_id = ? AND year < ? AND linked_transaction_id IS NULL
+        WHERE account_id = ? AND year < ?
       `).get(mainAccount.id, year) as { income: number, expense: number };
       let runningBalance = mainInitial + (mainPrior.income || 0) - (mainPrior.expense || 0);
 
@@ -245,7 +254,7 @@ router.get('/yearly', async (req, res) => {
           SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
           SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
         FROM transactions
-        WHERE account_id = ? AND year = ? AND linked_transaction_id IS NULL
+        WHERE account_id = ? AND year = ?
         GROUP BY month
       `).all(mainAccount.id, year) as { month: number, income: number, expense: number }[];
 
@@ -318,7 +327,6 @@ router.get('/assets', async (req, res) => {
         SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE linked_transaction_id IS NULL
     `);
     const txTotals = txStmt.get() as { income: number, expense: number };
     const cashBalance = initialTotal + (txTotals.income || 0) - (txTotals.expense || 0);

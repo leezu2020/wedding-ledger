@@ -21,6 +21,8 @@ type MonthlyStats = {
   income: number;
   expense: number;
   balance: number;
+  transferIncome: number;
+  transferExpense: number;
   savings: number;
   stocks: { ticker: string; name: string; buy_amount: number; shares: number }[];
   stockTotal: number;
@@ -153,7 +155,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">대시보드</h2>
-          <HelpTooltip content="메인 계좌: 이체 거래는 수입/지출에서 제외됩니다. 다른 계좌: 이체 거래도 수입/지출에 포함됩니다." />
+          <HelpTooltip content="메인 계좌: 이체 거래가 수입/지출에 포함됩니다." />
         </div>
         <div className="flex flex-wrap items-center gap-3 md:gap-4">
           {/* Tab Buttons */}
@@ -268,6 +270,11 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
             <div>
               <p className="text-emerald-100 text-sm font-medium">총 수입</p>
               <h3 className="text-2xl font-bold mt-1">₩{stats.income.toLocaleString()}</h3>
+              {stats.transferIncome > 0 && isMainAccount && (
+                <p className="text-emerald-50 text-xs mt-1 opacity-80">
+                  (이체: ₩{stats.transferIncome.toLocaleString()})
+                </p>
+              )}
             </div>
             <div className="p-2 bg-white/20 rounded-lg">
               <TrendingUp className="text-white" size={20} />
@@ -281,6 +288,11 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
             <div>
               <p className="text-rose-100 text-sm font-medium">총 지출</p>
               <h3 className="text-2xl font-bold mt-1">₩{stats.expense.toLocaleString()}</h3>
+              {stats.transferExpense > 0 && isMainAccount && (
+                <p className="text-rose-50 text-xs mt-1 opacity-80">
+                  (이체: ₩{stats.transferExpense.toLocaleString()})
+                </p>
+              )}
             </div>
             <div className="p-2 bg-white/20 rounded-lg">
               <TrendingDown className="text-white" size={20} />
