@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { Card } from '../components/ui/Card';
-import { transactionsApi, savingsApi } from '../api';
-import { type Transaction, type Saving } from '../types';
+import { transactionsApi, savingsApi, accountsApi } from '../api';
+import { type Transaction, type Saving, type Account } from '../types';
 
 type DaySummary = {
   date: Date;
@@ -25,6 +25,19 @@ export default function MonthlySheet() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [savings, setSavings] = useState<Saving[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | 'all'>('all');
+
+  // Fetch accounts on mount
+  useEffect(() => {
+    accountsApi.getAll().then(accs => {
+      setAccounts(accs);
+      const mainAcc = accs.find(a => a.is_main === 1);
+      if (mainAcc) setSelectedAccountId(mainAcc.id);
+      else if (accs.length > 0) setSelectedAccountId(accs[0].id);
+    });
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -69,6 +82,17 @@ export default function MonthlySheet() {
     return days;
   }, [currentDate]);
 
+  // Filter data based on selected account
+  const filteredTransactions = useMemo(() => {
+    if (selectedAccountId === 'all') return transactions;
+    return transactions.filter(tx => tx.account_id === selectedAccountId);
+  }, [transactions, selectedAccountId]);
+
+  const filteredSavings = useMemo(() => {
+    if (selectedAccountId === 'all') return savings;
+    return savings.filter(s => s.account_id === selectedAccountId);
+  }, [savings, selectedAccountId]);
+
   // Build day summaries
   const daySummaries = useMemo(() => {
     const map = new Map<string, DaySummary>();
@@ -85,7 +109,7 @@ export default function MonthlySheet() {
       });
     });
 
-    transactions.forEach(tx => {
+    filteredTransactions.forEach(tx => {
       const key = `${year}-${String(month).padStart(2, '0')}-${String(tx.day).padStart(2, '0')}`;
       const summary = map.get(key);
       if (summary) {
@@ -98,7 +122,7 @@ export default function MonthlySheet() {
     }
     });
 
-    savings.forEach(sav => {
+    filteredSavings.forEach(sav => {
       if (sav.day) {
         const key = `${year}-${String(month).padStart(2, '0')}-${String(sav.day).padStart(2, '0')}`;
         const summary = map.get(key);
@@ -110,46 +134,50 @@ export default function MonthlySheet() {
     });
 
     return map;
-  }, [calendarDays, transactions, savings, year, month]);
+  }, [calendarDays, filteredTransactions, filteredSavings, year, month]);
 
   // Monthly totals
   const monthlyTotals = useMemo(() => {
-    let income = 0, expense = 0, savingsTotal = 0;
-    transactions.forEach(tx => {
-      if (!tx.linked_transaction_id) {
-        if (tx.type === 'income') income += tx.amount;
-        else expense += tx.amount;
+    let income = 0, expense = 0, incomeTransfer = 0, expenseTransfer = 0, savingsTotal = 0;
+    filteredTransactions.forEach(tx => {
+      // Include transfers as requested by the user
+      if (tx.type === 'income') {
+        income += tx.amount;
+        if (tx.linked_transaction_id) incomeTransfer += tx.amount;
+      } else {
+        expense += tx.amount;
+        if (tx.linked_transaction_id) expenseTransfer += tx.amount;
       }
     });
-    savings.forEach(s => savingsTotal += s.amount);
-    return { income, expense, savings: savingsTotal, balance: income - expense };
-  }, [transactions, savings]);
+    filteredSavings.forEach(s => savingsTotal += s.amount);
+    return { income, expense, incomeTransfer, expenseTransfer, savings: savingsTotal, balance: income - expense };
+  }, [filteredTransactions, filteredSavings]);
 
-  // TOP 5 Summary
-  const top5Summary = useMemo(() => {
-    const expenses: { id: number; name: string; category: string; amount: number }[] = [];
-    const incomes: { id: number; name: string; category: string; amount: number }[] = [];
+  // All Transactions List (Sorted by amount DESC)
+  const allTransactionsList = useMemo(() => {
+    const expenses: { id: number; name: string; category: string; amount: number; date: Date; isTransfer: boolean }[] = [];
+    const incomes: { id: number; name: string; category: string; amount: number; date: Date; isTransfer: boolean }[] = [];
 
-    transactions.forEach(tx => {
-      if (tx.linked_transaction_id) return; // Skip transfers
-
+    filteredTransactions.forEach(tx => {
       const rawDesc = (tx.description || '').replace('[자동이체]', '').trim();
       const catDesc = tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '';
       const name = rawDesc || catDesc || '내용 없음';
       const category = catDesc || '분류 없음';
+      
+      const txDate = new Date(tx.year, tx.month - 1, tx.day || 1);
 
       if (tx.type === 'expense') {
-        expenses.push({ id: tx.id, name, category, amount: tx.amount });
+        expenses.push({ id: tx.id, name, category, amount: tx.amount, date: txDate, isTransfer: !!tx.linked_transaction_id });
       } else if (tx.type === 'income') {
-        incomes.push({ id: tx.id, name, category, amount: tx.amount });
+        incomes.push({ id: tx.id, name, category, amount: tx.amount, date: txDate, isTransfer: !!tx.linked_transaction_id });
       }
     });
 
-    const topExpenses = expenses.sort((a, b) => b.amount - a.amount).slice(0, 5);
-    const topIncomes = incomes.sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const allExpenses = expenses.sort((a, b) => b.amount - a.amount);
+    const allIncomes = incomes.sort((a, b) => b.amount - a.amount);
 
-    return { topExpenses, topIncomes };
-  }, [transactions]);
+    return { allExpenses, allIncomes };
+  }, [filteredTransactions]);
 
   // Selected day data
   const selectedDayData = useMemo(() => {
@@ -163,10 +191,28 @@ export default function MonthlySheet() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">월별 가계부</h2>
-          <HelpTooltip content="이체 거래는 수입/지출 합계에서 제외됩니다." />
+          <HelpTooltip content="메인 계좌 등 특정 계좌 선택 시 해당 계좌의 이체 내역이 정상적으로 수입/지출에 반영됩니다." />
+        </div>
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
+          {/* Account Single Select */}
+          <div className="relative">
+            <select
+              value={selectedAccountId}
+              onChange={(e) => setSelectedAccountId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              className="appearance-none pl-3 pr-8 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              <option value="all">전체 계좌</option>
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.is_main === 1 ? `⭐ ${a.name}` : a.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
         </div>
       </div>
 
@@ -186,11 +232,21 @@ export default function MonthlySheet() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-center">
             <div className="flex justify-between sm:block border-b border-white/10 sm:border-0 pb-2 sm:pb-0">
               <p className="text-white/80 text-sm">수입</p>
-              <p className="text-lg font-bold text-emerald-100">{monthlyTotals.income.toLocaleString()}원</p>
+              <p className="text-lg font-bold text-emerald-100">
+                {monthlyTotals.income.toLocaleString()}원
+                {monthlyTotals.incomeTransfer > 0 && (
+                  <span className="text-xs font-normal opacity-80 sm:block sm:-mt-1 md:inline md:mt-0 md:ml-1"> (이체: {monthlyTotals.incomeTransfer.toLocaleString()}원)</span>
+                )}
+              </p>
             </div>
             <div className="flex justify-between sm:block border-b border-white/10 sm:border-0 pb-2 sm:pb-0">
               <p className="text-white/80 text-sm">지출</p>
-              <p className="text-lg font-bold text-rose-200">{monthlyTotals.expense.toLocaleString()}원</p>
+              <p className="text-lg font-bold text-rose-200">
+                {monthlyTotals.expense.toLocaleString()}원
+                {monthlyTotals.expenseTransfer > 0 && (
+                  <span className="text-xs font-normal opacity-80 sm:block sm:-mt-1 md:inline md:mt-0 md:ml-1"> (이체: {monthlyTotals.expenseTransfer.toLocaleString()}원)</span>
+                )}
+              </p>
             </div>
             <div className="flex justify-between sm:block pt-1 sm:pt-0">
               <p className="text-white/80 text-sm">합계</p>
@@ -365,27 +421,43 @@ export default function MonthlySheet() {
         )}
       </Card>
 
-      {/* Top 5 Summary */}
+      {/* All Transactions Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6">
-        {/* 지출 TOP 5 */}
+        {/* 모든 지출 항목 */}
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
               -
             </span>
-            <h3 className="text-lg font-bold">지출 TOP 5</h3>
+            <h3 className="text-lg font-bold">전체 지출 항목</h3>
           </div>
-          {top5Summary.topExpenses.length === 0 ? (
+          {allTransactionsList.allExpenses.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-4">지출 내역이 없습니다.</p>
           ) : (
-            <div className="space-y-3">
-              {top5Summary.topExpenses.map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between">
+            <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
+              {allTransactionsList.allExpenses.map((item, idx) => (
+                <div 
+                  key={item.id} 
+                  className="flex items-center justify-between p-2 -mx-2 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  onClick={() => {
+                    setSelectedDate(item.date);
+                    window.scrollTo({ top: 150, behavior: 'smooth' });
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold w-4 text-slate-400">{idx + 1}</span>
                     <div>
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-xs text-slate-400">{item.category}</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        {item.name}
+                        {item.isTransfer && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">
+                            이체
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {format(item.date, 'MM/dd')} · {item.category}
+                      </p>
                     </div>
                   </div>
                   <span className="text-sm font-bold text-rose-600">{item.amount.toLocaleString()}원</span>
@@ -395,25 +467,41 @@ export default function MonthlySheet() {
           )}
         </Card>
 
-        {/* 수입 TOP 5 */}
+        {/* 모든 수입 항목 */}
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg">
               +
             </span>
-            <h3 className="text-lg font-bold">수입 TOP 5</h3>
+            <h3 className="text-lg font-bold">전체 수입 항목</h3>
           </div>
-          {top5Summary.topIncomes.length === 0 ? (
+          {allTransactionsList.allIncomes.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-4">수입 내역이 없습니다.</p>
           ) : (
-            <div className="space-y-3">
-              {top5Summary.topIncomes.map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between">
+            <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
+              {allTransactionsList.allIncomes.map((item, idx) => (
+                <div 
+                  key={item.id} 
+                  className="flex items-center justify-between p-2 -mx-2 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  onClick={() => {
+                    setSelectedDate(item.date);
+                    window.scrollTo({ top: 150, behavior: 'smooth' });
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold w-4 text-slate-400">{idx + 1}</span>
                     <div>
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-xs text-slate-400">{item.category}</p>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        {item.name}
+                        {item.isTransfer && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">
+                            이체
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {format(item.date, 'MM/dd')} · {item.category}
+                      </p>
                     </div>
                   </div>
                   <span className="text-sm font-bold text-emerald-600">{item.amount.toLocaleString()}원</span>
