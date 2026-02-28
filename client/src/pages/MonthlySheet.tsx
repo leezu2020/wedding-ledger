@@ -125,6 +125,32 @@ export default function MonthlySheet() {
     return { income, expense, savings: savingsTotal, balance: income - expense };
   }, [transactions, savings]);
 
+  // TOP 5 Summary
+  const top5Summary = useMemo(() => {
+    const expenses: { id: number; name: string; category: string; amount: number }[] = [];
+    const incomes: { id: number; name: string; category: string; amount: number }[] = [];
+
+    transactions.forEach(tx => {
+      if (tx.linked_transaction_id) return; // Skip transfers
+
+      const rawDesc = (tx.description || '').replace('[자동이체]', '').trim();
+      const catDesc = tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '';
+      const name = rawDesc || catDesc || '내용 없음';
+      const category = catDesc || '분류 없음';
+
+      if (tx.type === 'expense') {
+        expenses.push({ id: tx.id, name, category, amount: tx.amount });
+      } else if (tx.type === 'income') {
+        incomes.push({ id: tx.id, name, category, amount: tx.amount });
+      }
+    });
+
+    const topExpenses = expenses.sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const topIncomes = incomes.sort((a, b) => b.amount - a.amount).slice(0, 5);
+
+    return { topExpenses, topIncomes };
+  }, [transactions]);
+
   // Selected day data
   const selectedDayData = useMemo(() => {
     if (!selectedDate) return null;
@@ -338,6 +364,65 @@ export default function MonthlySheet() {
           </>
         )}
       </Card>
+
+      {/* Top 5 Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6">
+        {/* 지출 TOP 5 */}
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-lg">
+              -
+            </span>
+            <h3 className="text-lg font-bold">지출 TOP 5</h3>
+          </div>
+          {top5Summary.topExpenses.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-4">지출 내역이 없습니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {top5Summary.topExpenses.map((item, idx) => (
+                <div key={item.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold w-4 text-slate-400">{idx + 1}</span>
+                    <div>
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-slate-400">{item.category}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-rose-600">{item.amount.toLocaleString()}원</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* 수입 TOP 5 */}
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg">
+              +
+            </span>
+            <h3 className="text-lg font-bold">수입 TOP 5</h3>
+          </div>
+          {top5Summary.topIncomes.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-4">수입 내역이 없습니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {top5Summary.topIncomes.map((item, idx) => (
+                <div key={item.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold w-4 text-slate-400">{idx + 1}</span>
+                    <div>
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-slate-400">{item.category}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">{item.amount.toLocaleString()}원</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
