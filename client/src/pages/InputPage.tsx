@@ -9,7 +9,6 @@ import { Select } from '../components/ui/Select';
 import { DatePicker } from '../components/ui/DatePicker';
 import { CategorySelect } from '../components/ui/CategorySelect';
 import { SearchableCategorySelect } from '../components/ui/SearchableCategorySelect';
-import { MultiSelectDropdown } from '../components/ui/MultiSelectDropdown';
 import { 
   transactionsApi, 
   accountsApi, 
@@ -49,7 +48,6 @@ export default function InputPage() {
 
   // Tab & Sort State
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
   // Inline Editing State
@@ -95,9 +93,6 @@ export default function InputPage() {
       // Initialize tab to first account if not yet selected
       if (accData.length > 0 && !selectedAccountId) {
         setSelectedAccountId(accData[0].id);
-      }
-      if (catData.length > 0) {
-        setSelectedCategoryIds(catData.map(c => c.id));
       }
 
       if (inputType === 'savings') {
@@ -257,18 +252,7 @@ export default function InputPage() {
     if (inputType === 'savings') {
       data = savings.filter(s => s.account_id === selectedAccountId);
     } else {
-      // Create a Set of selected major categories (where sub is null/empty)
-      const selectedMajorCategories = new Set(
-        categories
-          .filter(c => selectedCategoryIds.includes(c.id) && !c.sub)
-          .map(c => c.major)
-      );
-
-      data = transactions.filter(t => {
-        const directMatch = selectedCategoryIds.includes(t.category_id);
-        const parentMatch = t.major && selectedMajorCategories.has(t.major);
-        return t.account_id === selectedAccountId && (directMatch || parentMatch);
-      });
+      data = transactions.filter(t => t.account_id === selectedAccountId);
       
       // Detailed Search Filters
       if (searchCategories.length > 0) {
@@ -319,7 +303,7 @@ export default function InputPage() {
       const compare = valA > valB ? 1 : -1;
       return sortConfig.direction === 'asc' ? compare : -compare;
     });
-  }, [transactions, savings, inputType, selectedAccountId, selectedCategoryIds, sortConfig, searchCategories, searchDesc, searchMinAmt, searchMaxAmt]);
+  }, [transactions, savings, inputType, selectedAccountId, sortConfig, searchCategories, searchDesc, searchMinAmt, searchMaxAmt]);
 
   const handleSort = (key: 'date' | 'amount') => {
     setSortConfig(current => ({
@@ -510,18 +494,7 @@ export default function InputPage() {
                         >
                           <div className="flex items-center">날짜 <SortIcon column="date" /></div>
                         </th>
-                        <th className="px-4 py-3 w-[240px]">
-                          <div className="flex items-center">
-                            카테고리
-                            <MultiSelectDropdown
-                              label="카테고리"
-                              options={categories.map(c => ({ id: c.id, label: `${c.major}${c.sub ? ' > ' + c.sub : ''}` }))}
-                              selectedIds={selectedCategoryIds}
-                              onChange={(ids) => setSelectedCategoryIds(ids as number[])}
-                              trigger={<ArrowDown size={14} className="ml-1 text-slate-300 hover:text-slate-500" />}
-                            />
-                          </div>
-                        </th>
+                        <th className="px-4 py-3">카테고리</th>
                         <th className="px-4 py-3">내용</th>
                         <th 
                           className="px-4 py-3 text-right w-[120px] cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
