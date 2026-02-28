@@ -189,10 +189,10 @@ export default function CategoryPage() {
                     className="h-8 text-sm min-w-0 flex-1"
                   />
                   <div className="flex shrink-0 gap-1">
-                    <button onClick={saveEditMajor} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                    <button onClick={saveEditMajor} className="p-1 text-green-600 hover:bg-green-100 rounded cursor-pointer">
                       <Save size={16} />
                     </button>
-                    <button onClick={cancelEditMajor} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                    <button onClick={cancelEditMajor} className="p-1 text-slate-400 hover:bg-slate-100 rounded cursor-pointer">
                       <X size={16} />
                     </button>
                   </div>
@@ -207,7 +207,7 @@ export default function CategoryPage() {
                   )}
                   <button 
                     onClick={() => startEditMajor(major)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0 cursor-pointer"
                   >
                     <Edit2 size={14} />
                   </button>
@@ -217,14 +217,14 @@ export default function CategoryPage() {
               <div className="flex shrink-0 gap-1 ml-2">
                  <button 
                   onClick={() => setAddingSubTo(addingSubTo === major ? null : major)}
-                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer"
                   title="소분류 추가"
                  >
                    <Plus size={18} />
                  </button>
                  <button 
                   onClick={() => handleDeleteMajor(major)}
-                  className="p-1 hover:bg-rose-100 hover:text-rose-600 rounded text-slate-500"
+                  className="p-1 hover:bg-rose-100 hover:text-rose-600 rounded text-slate-500 cursor-pointer"
                  >
                    <Trash2 size={18} />
                  </button>
@@ -255,10 +255,10 @@ export default function CategoryPage() {
                           className="h-7 text-sm min-w-0 flex-1"
                         />
                         <div className="flex shrink-0 gap-1">
-                          <button onClick={saveEditSub} className="p-0.5 text-green-600 hover:bg-green-100 rounded">
+                          <button onClick={saveEditSub} className="p-0.5 text-green-600 hover:bg-green-100 rounded cursor-pointer">
                             <Save size={14} />
                           </button>
-                          <button onClick={cancelEditSub} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded">
+                          <button onClick={cancelEditSub} className="p-0.5 text-slate-400 hover:bg-slate-100 rounded cursor-pointer">
                             <X size={14} />
                           </button>
                         </div>
@@ -274,14 +274,14 @@ export default function CategoryPage() {
                          )}
                         <button 
                           onClick={() => startEditSub(cat)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-500 transition-opacity shrink-0 cursor-pointer"
                         >
                           <Edit2 size={12} />
                         </button>
                       </div>
                       <button 
                         onClick={() => handleDelete(cat.id)}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 shrink-0 ml-2"
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 shrink-0 ml-2 cursor-pointer"
                       >
                         <Trash2 size={14} />
                       </button>

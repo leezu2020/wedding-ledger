@@ -107,7 +107,7 @@ export default function AccountsPage() {
               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
                   onClick={() => handleSetMain(account.id)}
-                  className={`p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                  className={`p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${
                     account.is_main === 1 ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'
                   }`}
                   title={account.is_main === 1 ? '메인 계좌' : '메인 계좌로 설정'}
@@ -116,13 +116,13 @@ export default function AccountsPage() {
                 </button>
                 <button 
                   onClick={() => handleEdit(account)}
-                  className="p-1 text-slate-400 hover:text-violet-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="p-1 text-slate-400 hover:text-violet-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <Pencil size={16} />
                 </button>
                 <button 
                   onClick={() => handleDelete(account.id)}
-                  className="p-1 text-slate-400 hover:text-rose-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -160,7 +160,7 @@ export default function AccountsPage() {
               <h3 className="text-lg font-bold">
                 {editingAccount ? '계좌 수정' : '새 계좌 등록'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X size={20} />
               </button>
             </div>
