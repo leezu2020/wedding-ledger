@@ -187,7 +187,7 @@ export default function StatisticsPage() {
       <Card className="p-0 overflow-hidden">
         <div className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white p-6">
           <div className="flex items-center justify-between mb-2">
-            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
               <ChevronLeft size={24} />
             </button>
             <div className="text-center">
@@ -196,7 +196,7 @@ export default function StatisticsPage() {
                 vs {prevYear}년 {prevMonth}월
               </p>
             </div>
-            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
               <ChevronRight size={24} />
             </button>
           </div>

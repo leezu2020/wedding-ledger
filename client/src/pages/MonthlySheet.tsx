@@ -220,11 +220,11 @@ export default function MonthlySheet() {
       <Card className="p-0 overflow-hidden">
         <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6">
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
               <ChevronLeft size={24} />
             </button>
             <h3 className="text-xl font-bold">{year}년 {month}월</h3>
-            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
               <ChevronRight size={24} />
             </button>
           </div>

@@ -162,7 +162,7 @@ export default function Dashboard() {
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             <button
               onClick={() => setActiveTab('monthly')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
                 activeTab === 'monthly'
                   ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
@@ -172,7 +172,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={() => setActiveTab('yearly')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
                 activeTab === 'yearly'
                   ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
@@ -198,9 +198,9 @@ export default function Dashboard() {
           </div>
           {/* Period Navigation */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
-            <span className="px-4 font-semibold min-w-[100px] text-center">{periodLabel}</span>
-            <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)} className="cursor-pointer">&lt;</Button>
+            <h3 className="text-xl font-bold min-w-[100px] text-center">{periodLabel}</h3>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(1)} className="cursor-pointer">&gt;</Button>
           </div>
         </div>
       </div>
@@ -322,7 +322,7 @@ function MonthlyView({ stats }: { stats: MonthlyStats | null }) {
             <div>
               <div className="flex items-center gap-2">
                  <p className="text-violet-100 text-sm font-medium">해당 월 투자원금</p>
-                 <button onClick={fetchPrices} disabled={isRefreshing} className="p-0.5 hover:bg-white/10 rounded-full transition-colors">
+                 <button onClick={fetchPrices} disabled={isRefreshing} className="p-0.5 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
                     <RefreshCw size={12} className={`text-violet-200 ${isRefreshing ? 'animate-spin' : ''}`} />
                  </button>
               </div>

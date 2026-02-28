@@ -193,7 +193,7 @@ export default function StockPage() {
             <div className="flex flex-col justify-between">
                <div className="flex justify-between items-start">
                  <span className="text-sm font-bold text-violet-600 dark:text-violet-400">전체 누적 현재 평가금 (추정)</span>
-                 <Button variant="ghost" size="sm" onClick={fetchAllTimeStocks} disabled={isLoadingAllTime} className="h-6 w-6 p-0 hover:bg-violet-200 dark:hover:bg-violet-800">
+                 <Button variant="ghost" size="sm" onClick={fetchAllTimeStocks} disabled={isLoadingAllTime} className="h-6 w-6 p-0 hover:bg-violet-200 dark:hover:bg-violet-800 cursor-pointer">
                    <RefreshCw size={14} className={isLoadingAllTime ? "animate-spin text-violet-600 dark:text-violet-400" : "text-violet-600 dark:text-violet-400"} />
                  </Button>
                </div>
@@ -214,9 +214,9 @@ export default function StockPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800 gap-4">
         <h3 className="text-xl font-bold">월별 관리</h3>
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shadow-inner w-fit">
-          <Button variant="outline" size="sm" onClick={() => changeMonth(-1)} className="border-none bg-white dark:bg-slate-700 shadow-sm">&lt;</Button>
+          <Button variant="outline" size="sm" onClick={() => changeMonth(-1)} className="border-none bg-white dark:bg-slate-700 shadow-sm cursor-pointer">&lt;</Button>
           <span className="px-4 font-bold text-slate-700 dark:text-slate-200">{format(currentDate, 'yyyy-MM')}</span>
-          <Button variant="outline" size="sm" onClick={() => changeMonth(1)} className="border-none bg-white dark:bg-slate-700 shadow-sm">&gt;</Button>
+          <Button variant="outline" size="sm" onClick={() => changeMonth(1)} className="border-none bg-white dark:bg-slate-700 shadow-sm cursor-pointer">&gt;</Button>
         </div>
       </div>
       
@@ -233,7 +233,7 @@ export default function StockPage() {
          <Card className="flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <span className="text-sm text-slate-500">현재 평가금 (추정)</span>
-              <Button variant="ghost" size="sm" onClick={() => fetchPrices(stocks)} disabled={isRefreshingPrices}>
+              <Button variant="ghost" size="sm" onClick={() => fetchPrices(stocks)} disabled={isRefreshingPrices} className="cursor-pointer">
                 <RefreshCw size={14} className={isRefreshingPrices ? "animate-spin" : ""} />
               </Button>
             </div>
@@ -286,7 +286,7 @@ export default function StockPage() {
                 {suggestions.map((s, idx) => (
                   <button
                     key={`${s.ticker}-${idx}`}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex justify-between items-center"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex justify-between items-center cursor-pointer"
                     onMouseDown={(e) => {
                       e.preventDefault(); // Prevent blur
                       setNewStock({...newStock, name: s.name, ticker: s.ticker});
@@ -318,7 +318,7 @@ export default function StockPage() {
             value={newStock.shares}
             onChange={e => setNewStock({...newStock, shares: e.target.value})}
           />
-          <Button onClick={handleAddStock}><Plus size={16} className="mr-2"/> 추가</Button>
+          <Button onClick={handleAddStock} className="cursor-pointer"><Plus size={16} className="mr-2"/> 추가</Button>
         </div>
 
         {/* List */}

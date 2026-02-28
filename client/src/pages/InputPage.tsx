@@ -325,9 +325,9 @@ export default function InputPage() {
         <h2 className="text-2xl font-bold">{title}</h2>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)}>&lt;</Button>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(-1)} className="cursor-pointer">&lt;</Button>
             <span className="text-lg font-semibold">{format(currentDate, 'yyyy-MM')}</span>
-            <Button variant="outline" size="sm" onClick={() => changeMonth(1)}>&gt;</Button>
+            <Button variant="outline" size="sm" onClick={() => changeMonth(1)} className="cursor-pointer">&gt;</Button>
           </div>
         </div>
       </div>
@@ -338,7 +338,7 @@ export default function InputPage() {
           <button
             key={acc.id}
             onClick={() => setSelectedAccountId(acc.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 cursor-pointer ${
               selectedAccountId === acc.id
                 ? 'border-violet-500 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20'
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50'
@@ -381,7 +381,7 @@ export default function InputPage() {
                     value={newTransaction.description || ''} 
                     onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
                   />
-                  <Button onClick={handleAddTransaction}>
+                  <Button onClick={handleAddTransaction} className="cursor-pointer">
                     <Plus size={16} className="mr-2"/> 추가
                   </Button>
                 </>
@@ -409,7 +409,7 @@ export default function InputPage() {
                     value={newSaving.amount || ''} 
                     onChange={e => setNewSaving({...newSaving, amount: Number(e.target.value)})}
                   />
-                  <Button onClick={handleAddSaving}>
+                  <Button onClick={handleAddSaving} className="cursor-pointer">
                     <Plus size={16} className="mr-2"/> 추가
                   </Button>
                 </>
@@ -423,7 +423,7 @@ export default function InputPage() {
                   variant="outline" 
                   size="sm" 
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
-                  className={`bg-white dark:bg-slate-800 ${isSearchOpen ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`bg-white dark:bg-slate-800 cursor-pointer ${isSearchOpen ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   <Search size={14} className="mr-1.5" /> 상세 필터
                 </Button>
@@ -435,7 +435,7 @@ export default function InputPage() {
               <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4 mb-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">상세 검색</h3>
-                  <button onClick={() => { setSearchCategories([]); setSearchDesc(''); setSearchMinAmt(''); setSearchMaxAmt(''); }} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1">
+                  <button onClick={() => { setSearchCategories([]); setSearchDesc(''); setSearchMinAmt(''); setSearchMaxAmt(''); }} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 cursor-pointer">
                     <X size={12} /> 필터 초기화
                   </button>
                 </div>
