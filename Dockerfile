@@ -25,6 +25,9 @@ RUN cd server && npm ci --omit=dev
 # Copy server build output
 COPY --from=server-build /app/server/dist ./server/dist
 
+# Copy prompt templates (non-TS files not included in tsc output)
+COPY server/src/prompts ./server/dist/prompts
+
 # Copy client build output
 COPY --from=client-build /app/client/dist ./client/dist
 
