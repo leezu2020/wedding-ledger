@@ -94,3 +94,11 @@ export type SavingsProduct = {
   paidStatus: string;
   progressPercent: number;
 };
+
+export type MonthlyReport = {
+  id: number;
+  year: number;
+  month: number;
+  content: string;
+  created_at: string;
+};

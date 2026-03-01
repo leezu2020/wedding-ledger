@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Account, Category, Transaction, Budget, Saving, Stock, SavingsProduct } from '../types';
+import type { Account, Category, Transaction, Budget, Saving, Stock, SavingsProduct, MonthlyReport } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -86,4 +86,9 @@ export const statisticsApi = {
     stock: number;
     total: number;
   }>('/statistics/assets').then(res => res.data),
+};
+
+export const reportsApi = {
+  get: (year: number, month: number) => api.get<MonthlyReport | null>('/reports', { params: { year, month } }).then(res => res.data),
+  generate: (year: number, month: number) => api.post<MonthlyReport>('/reports/generate', { year, month }).then(res => res.data),
 };

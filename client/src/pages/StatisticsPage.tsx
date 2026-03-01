@@ -3,8 +3,10 @@ import { subMonths } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
-import { transactionsApi } from '../api';
-import { type Transaction } from '../types';
+import { Button } from '../components/ui/Button';
+import ReactMarkdown from 'react-markdown';
+import { transactionsApi, reportsApi } from '../api';
+import { type Transaction, type MonthlyReport } from '../types';
 
 export default function StatisticsPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -12,6 +14,9 @@ export default function StatisticsPage() {
   
   const [currentMonthTxs, setCurrentMonthTxs] = useState<Transaction[]>([]);
   const [prevMonthTxs, setPrevMonthTxs] = useState<Transaction[]>([]);
+  
+  const [aiReport, setAiReport] = useState<MonthlyReport | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth() + 1;
@@ -27,16 +32,31 @@ export default function StatisticsPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [currData, prevData] = await Promise.all([
+      const [currData, prevData, reportData] = await Promise.all([
         transactionsApi.getAll(currentYear, currentMonth),
-        transactionsApi.getAll(prevYear, prevMonth)
+        transactionsApi.getAll(prevYear, prevMonth),
+        reportsApi.get(currentYear, currentMonth)
       ]);
       setCurrentMonthTxs(currData);
       setPrevMonthTxs(prevData);
+      setAiReport(reportData);
     } catch (error) {
       console.error('Failed to fetch statistics data', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true);
+    try {
+      const report = await reportsApi.generate(currentYear, currentMonth);
+      setAiReport(report);
+    } catch (error) {
+      console.error('Failed to generate AI report', error);
+      alert('AI 결산 리포트 생성에 실패했습니다.');
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -285,6 +305,52 @@ export default function StatisticsPage() {
                 </div>
               </div>
             </section>
+          </div>
+        )}
+      </Card>
+
+      {/* AI 리포트 영역 */}
+      <Card className="mt-8 border-violet-200 dark:border-violet-900 shadow-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+              ✨
+            </div>
+            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-fuchsia-600 dark:from-violet-400 dark:to-fuchsia-400">
+              AI 월간 재무 결산
+            </h3>
+          </div>
+          {!aiReport && (
+            <Button onClick={handleGenerateReport} isLoading={isGeneratingReport} className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 border-0">
+              결산하기
+            </Button>
+          )}
+        </div>
+
+        {isGeneratingReport ? (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-violet-500 mb-4" />
+            <p className="font-medium animate-pulse">AI가 이번 달 가계부 기록을 꼼꼼히 분석하고 있어요...</p>
+          </div>
+        ) : aiReport ? (
+          <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-violet-700 dark:prose-headings:text-violet-400 prose-a:text-fuchsia-600 bg-slate-50/50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800">
+            <ReactMarkdown>{aiReport.content}</ReactMarkdown>
+            <div className="mt-6 text-right">
+              <span className="text-xs text-slate-400">
+                작성일시: {new Date(aiReport.created_at).toLocaleString()}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleGenerateReport} className="ml-4 text-violet-600 hover:text-violet-700">
+                다시 생성하기
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 relative overflow-hidden group hover:border-violet-300 transition-colors">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <p className="text-slate-500 mb-4 relative z-10">이번 달의 재무 상태를 AI가 날카롭게 분석해 드립니다.</p>
+            <Button onClick={handleGenerateReport} variant="outline" className="border-violet-200 hover:bg-violet-50 text-violet-700 relative z-10">
+              첫 결산 리포트 생성하기
+            </Button>
           </div>
         )}
       </Card>

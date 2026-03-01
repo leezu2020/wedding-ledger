@@ -11,6 +11,7 @@ import savingsRouter from './routes/savings';
 import savingsProductsRouter from './routes/savingsProducts';
 import stocksRouter from './routes/stocks';
 import statisticsRouter from './routes/statistics';
+import reportsRouter from './routes/reports';
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.use('/api/savings', savingsRouter);
 app.use('/api/savings-products', savingsProductsRouter);
 app.use('/api/stocks', stocksRouter);
 app.use('/api/statistics', statisticsRouter);
+app.use('/api/reports', reportsRouter);
 
 // Serve client static files in production
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
