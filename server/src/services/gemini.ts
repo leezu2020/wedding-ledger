@@ -41,15 +41,15 @@ export const generateMonthlyReport = async (
   try {
     console.log('[Gemini API] Requesting content generation for', year, month);
     
-    // 30초 타임아웃 강제 부여
+    // 5분 타임아웃 강제 부여
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Gemini API call timed out after 30 seconds')), 30000)
+      setTimeout(() => reject(new Error('Gemini API call timed out after 5 minutes')), 300000)
     );
 
     const result = await Promise.race([
       model.generateContent({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 2048, temperature: 0.7 }
+          generationConfig: { maxOutputTokens: 65536, temperature: 0.7 }
       }),
       timeoutPromise
     ]) as any;
