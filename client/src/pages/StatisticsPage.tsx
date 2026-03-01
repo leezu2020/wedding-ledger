@@ -33,19 +33,24 @@ export default function StatisticsPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [currData, prevData, reportData] = await Promise.all([
+      // Fetch transactions independently so a reports API failure doesn't block comparison data
+      const [currData, prevData] = await Promise.all([
         transactionsApi.getAll(currentYear, currentMonth),
         transactionsApi.getAll(prevYear, prevMonth),
-        reportsApi.get(currentYear, currentMonth)
       ]);
       setCurrentMonthTxs(currData);
       setPrevMonthTxs(prevData);
-      setAiReport(reportData);
     } catch (error) {
-      console.error('Failed to fetch statistics data', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to fetch transaction data', error);
     }
+    // Fetch AI report separately so its failure never blocks the main UI
+    try {
+      const reportData = await reportsApi.get(currentYear, currentMonth);
+      setAiReport(reportData);
+    } catch {
+      setAiReport(null);
+    }
+    setIsLoading(false);
   };
 
   const handleGenerateReport = async () => {
@@ -76,8 +81,6 @@ export default function StatisticsPage() {
       // 그룹화 기준: 대분류 > 소분류 (결제처가 파편화되어 있으면 항목별 변동 추적이 어려우므로 카테고리 기준)
       return tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '분류 없음';
     };
-
-    console.log('[StatisticsPage Debug] Comparing:', currentMonthTxs.length, prevMonthTxs.length);
 
     currentMonthTxs.forEach(tx => {
       if (tx.linked_transaction_id) return;
@@ -139,8 +142,6 @@ export default function StatisticsPage() {
     });
 
     const sortByDiff = (a: any, b: any) => Math.abs(b.diff) - Math.abs(a.diff);
-
-    console.log('[StatisticsPage Debug] Expense New Length:', newExpenses.length, 'Increased:', increasedExpenses.length);
 
     return {
       expense: {

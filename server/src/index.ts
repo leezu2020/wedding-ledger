@@ -12,6 +12,7 @@ import savingsProductsRouter from './routes/savingsProducts';
 import stocksRouter from './routes/stocks';
 import statisticsRouter from './routes/statistics';
 import reportsRouter from './routes/reports';
+import './db/migrate-monthly-reports';
 
 dotenv.config();
 
