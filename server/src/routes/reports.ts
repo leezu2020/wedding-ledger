@@ -40,7 +40,7 @@ reportsRouter.post('/generate', async (req, res) => {
     const txStmt = db.prepare(`
       SELECT 
         t.type, t.amount, t.description, t.linked_transaction_id,
-        c.major, c.sub 
+        c.major, c.middle as sub 
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.year = ? AND t.month = ?
@@ -72,15 +72,27 @@ reportsRouter.post('/generate', async (req, res) => {
     });
 
     budgets.forEach((b: any) => {
-      const cat = db.prepare('SELECT major, sub FROM categories WHERE id = ?').get(b.category_id) as any;
+      const cat = db.prepare('SELECT major, middle as sub FROM categories WHERE id = ?').get(b.category_id) as any;
       if (cat) {
         const catName = `${cat.major || '기타'}${cat.sub ? ` > ${cat.sub}` : ''}`;
         aggregated.budgets[catName] = b.amount;
       }
     });
 
+    // 1.5 Fetch previous month's report context
+    let prevYear = year;
+    let prevMonth = month - 1;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+    const prevReportData = db.prepare('SELECT content FROM monthly_reports WHERE year = ? AND month = ?').get(prevYear, prevMonth) as { content: string } | undefined;
+    const prevReportContext = prevReportData ? prevReportData.content : null;
+
     // 2. Call Gemini
-    const reportContent = await generateMonthlyReport(year, month, aggregated);
+    console.log(`[Reports API] Invoking generateMonthlyReport for ${year}-${month}...`);
+    const reportContent = await generateMonthlyReport(year, month, aggregated, prevReportContext);
+    console.log('[Reports API] Report content successfully generated.', reportContent.length, 'bytes');
 
     // 3. Save or Update in DB
     db.prepare(`
@@ -94,8 +106,11 @@ reportsRouter.post('/generate', async (req, res) => {
     const newReport = db.prepare('SELECT * FROM monthly_reports WHERE year = ? AND month = ?').get(year, month);
     res.json(newReport);
   } catch (err: any) {
-    console.error('Failed to generate report:', err);
-    res.status(500).json({ error: err.message || 'Failed to generate report' });
+    console.error('Failed to generate report (Detail):', err);
+    res.status(500).json({ 
+      error: 'Failed to generate report',
+      detail: err.message || JSON.stringify(err)
+    });
   }
 });
 

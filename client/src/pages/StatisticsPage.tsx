@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { Button } from '../components/ui/Button';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { transactionsApi, reportsApi } from '../api';
 import { type Transaction, type MonthlyReport } from '../types';
 
@@ -334,7 +335,7 @@ export default function StatisticsPage() {
           </div>
         ) : aiReport ? (
           <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-violet-700 dark:prose-headings:text-violet-400 prose-a:text-fuchsia-600 bg-slate-50/50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800">
-            <ReactMarkdown>{aiReport.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiReport.content}</ReactMarkdown>
             <div className="mt-6 text-right">
               <span className="text-xs text-slate-400">
                 작성일시: {new Date(aiReport.created_at).toLocaleString()}
