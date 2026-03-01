@@ -77,6 +77,8 @@ export default function StatisticsPage() {
       return tx.major ? `${tx.major}${tx.sub ? ` > ${tx.sub}` : ''}` : '분류 없음';
     };
 
+    console.log('[StatisticsPage Debug] Comparing:', currentMonthTxs.length, prevMonthTxs.length);
+
     currentMonthTxs.forEach(tx => {
       if (tx.linked_transaction_id) return;
       const key = getGroupKey(tx);
@@ -137,6 +139,8 @@ export default function StatisticsPage() {
     });
 
     const sortByDiff = (a: any, b: any) => Math.abs(b.diff) - Math.abs(a.diff);
+
+    console.log('[StatisticsPage Debug] Expense New Length:', newExpenses.length, 'Increased:', increasedExpenses.length);
 
     return {
       expense: {
