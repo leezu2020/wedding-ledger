@@ -167,8 +167,9 @@ export default function StatisticsPage() {
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() + 1 === currentMonth;
     const prevDays = getDaysInMonth(new Date(prevYear, prevMonth - 1));
-    const currDays = isCurrentMonth ? today.getDate() : getDaysInMonth(new Date(currentYear, currentMonth - 1));
-    const maxDays = Math.max(prevDays, currDays);
+    const currActualDays = getDaysInMonth(new Date(currentYear, currentMonth - 1));
+    const maxDays = Math.max(prevDays, currActualDays);
+    const currVisibleDays = isCurrentMonth ? today.getDate() : maxDays;
 
     // 일별 지출 합산 (이체 포함, expense만)
     const prevDailyMap: Record<number, number> = {};
@@ -189,25 +190,23 @@ export default function StatisticsPage() {
     const result: { day: number; prev: number | null; curr: number | null }[] = [];
 
     for (let d = 1; d <= maxDays; d++) {
-      const hasPrev = d <= prevDays;
-      const hasCurr = d <= currDays;
-      if (hasPrev) prevRunning += prevDailyMap[d] || 0;
-      if (hasCurr) currRunning += currDailyMap[d] || 0;
+      if (d <= prevDays) prevRunning += prevDailyMap[d] || 0;
+      if (d <= currActualDays) currRunning += currDailyMap[d] || 0;
+      // 짧은 달은 마지막 날 누적값을 유지 (보정)
+      // 이번 달이 현재 진행 중이면 오늘 이후는 null
       result.push({
         day: d,
-        prev: hasPrev ? prevRunning : null,
-        curr: hasCurr ? currRunning : null,
+        prev: prevRunning,
+        curr: d <= currVisibleDays ? currRunning : null,
       });
     }
 
-    // 최종 차이 (이번 달 마지막 데이터 기준)
-    const lastCurrDay = result.filter(r => r.curr !== null).slice(-1)[0];
-    const lastPrevSameDay = lastCurrDay ? result.find(r => r.day === lastCurrDay.day) : null;
-    const diff = lastCurrDay && lastPrevSameDay?.prev !== null
-      ? (lastCurrDay.curr ?? 0) - (lastPrevSameDay?.prev ?? 0)
-      : null;
+    // 최종 차이: 이번 달 마지막 데이터 vs 지난 달 전체 누적
+    const currTotal = result.filter(r => r.curr !== null).slice(-1)[0]?.curr ?? 0;
+    const prevTotal = prevRunning; // 지난 달 전체 누적
+    const diff = currTotal - prevTotal;
 
-    return { chartData: result, diff, currDays, prevDays };
+    return { chartData: result, diff, currDays: currVisibleDays, prevDays };
   }, [currentMonthTxs, prevMonthTxs, currentYear, currentMonth, prevYear, prevMonth]);
 
   const renderComparisonItem = (item: any, type: 'expense' | 'income', status: 'new' | 'increased' | 'decreased' | 'removed') => {
