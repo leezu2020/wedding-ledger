@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { subMonths } from 'date-fns';
+import { subMonths, getDaysInMonth } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
 import { Card } from '../components/ui/Card';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { Button } from '../components/ui/Button';
@@ -159,6 +162,54 @@ export default function StatisticsPage() {
     };
   }, [currentMonthTxs, prevMonthTxs]);
 
+  // ─── 일별 누적 지출 비교 데이터 ───
+  const cumulativeData = useMemo(() => {
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() + 1 === currentMonth;
+    const prevDays = getDaysInMonth(new Date(prevYear, prevMonth - 1));
+    const currDays = isCurrentMonth ? today.getDate() : getDaysInMonth(new Date(currentYear, currentMonth - 1));
+    const maxDays = Math.max(prevDays, currDays);
+
+    // 일별 지출 합산 (이체 포함, expense만)
+    const prevDailyMap: Record<number, number> = {};
+    const currDailyMap: Record<number, number> = {};
+
+    prevMonthTxs.forEach(tx => {
+      if (tx.type !== 'expense') return;
+      prevDailyMap[tx.day] = (prevDailyMap[tx.day] || 0) + tx.amount;
+    });
+    currentMonthTxs.forEach(tx => {
+      if (tx.type !== 'expense') return;
+      currDailyMap[tx.day] = (currDailyMap[tx.day] || 0) + tx.amount;
+    });
+
+    // 누적 합산
+    let prevRunning = 0;
+    let currRunning = 0;
+    const result: { day: number; prev: number | null; curr: number | null }[] = [];
+
+    for (let d = 1; d <= maxDays; d++) {
+      const hasPrev = d <= prevDays;
+      const hasCurr = d <= currDays;
+      if (hasPrev) prevRunning += prevDailyMap[d] || 0;
+      if (hasCurr) currRunning += currDailyMap[d] || 0;
+      result.push({
+        day: d,
+        prev: hasPrev ? prevRunning : null,
+        curr: hasCurr ? currRunning : null,
+      });
+    }
+
+    // 최종 차이 (이번 달 마지막 데이터 기준)
+    const lastCurrDay = result.filter(r => r.curr !== null).slice(-1)[0];
+    const lastPrevSameDay = lastCurrDay ? result.find(r => r.day === lastCurrDay.day) : null;
+    const diff = lastCurrDay && lastPrevSameDay?.prev !== null
+      ? (lastCurrDay.curr ?? 0) - (lastPrevSameDay?.prev ?? 0)
+      : null;
+
+    return { chartData: result, diff, currDays, prevDays };
+  }, [currentMonthTxs, prevMonthTxs, currentYear, currentMonth, prevYear, prevMonth]);
+
   const renderComparisonItem = (item: any, type: 'expense' | 'income', status: 'new' | 'increased' | 'decreased' | 'removed') => {
     let statusColor = '';
     let statusIcon = null;
@@ -232,6 +283,90 @@ export default function StatisticsPage() {
           <div className="flex justify-center p-12"><Loader2 className="animate-spin text-violet-500" /></div>
         ) : (
           <div className="p-6 space-y-8">
+            {/* ─── 일별 누적 지출 비교 차트 ─── */}
+            <section>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2 w-full">
+                  <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">📈</span>
+                  일별 누적 지출 비교
+                  {cumulativeData.diff !== null && (
+                    <span className={`ml-auto text-sm font-semibold ${
+                      cumulativeData.diff > 0 ? 'text-rose-500' : cumulativeData.diff < 0 ? 'text-emerald-500' : 'text-slate-400'
+                    }`}>
+                      {cumulativeData.diff > 0
+                        ? `지난달 대비 +${cumulativeData.diff.toLocaleString()}원 초과 🚨`
+                        : cumulativeData.diff < 0
+                          ? `지난달 대비 ${Math.abs(cumulativeData.diff).toLocaleString()}원 절약 ✅`
+                          : '지난달과 동일'}
+                    </span>
+                  )}
+                </h3>
+              </div>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cumulativeData.chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="gradPrev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#94A3B8" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#94A3B8" stopOpacity={0.05} />
+                      </linearGradient>
+                      <linearGradient id="gradCurr" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366F1" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#6366F1" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(d) => `${d}일`}
+                      stroke="#94A3B8"
+                      tick={{ fontSize: 11 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      stroke="#94A3B8"
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) => v >= 10000 ? `${(v / 10000).toFixed(0)}만` : v.toLocaleString()}
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 12px rgb(0 0 0 / 0.12)', padding: '12px 16px' }}
+                      labelFormatter={(label) => `${label}일`}
+                      formatter={(value: any, name?: string) => [
+                        `₩${Number(value).toLocaleString()}`,
+                        name === 'prev' ? `${prevMonth}월 누적` : `${currentMonth}월 누적`
+                      ]}
+                    />
+                    <Legend
+                      formatter={(value: string) => (
+                        <span className="text-xs text-slate-600 dark:text-slate-300">
+                          {value === 'prev' ? `${prevYear}년 ${prevMonth}월` : `${currentYear}년 ${currentMonth}월`}
+                        </span>
+                      )}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="prev"
+                      stroke="#94A3B8"
+                      strokeWidth={2}
+                      strokeDasharray="6 3"
+                      fill="url(#gradPrev)"
+                      dot={{ r: 2, fill: '#94A3B8' }}
+                      connectNulls={false}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="curr"
+                      stroke="#6366F1"
+                      strokeWidth={2.5}
+                      fill="url(#gradCurr)"
+                      dot={{ r: 2.5, fill: '#6366F1' }}
+                      connectNulls={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
             {/* 지출 비교 섹션 */}
             <section>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
