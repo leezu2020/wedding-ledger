@@ -201,9 +201,11 @@ export default function StatisticsPage() {
       });
     }
 
-    // 최종 차이: 이번 달 마지막 데이터 vs 지난 달 전체 누적
+    // 최종 차이: 동일 일수 기준 비교
+    // - 현재 월: 오늘까지의 누적 vs 지난달 같은 날까지의 누적
+    // - 지난 달: 해당 월 전체 vs 지난달 전체
     const currTotal = result.filter(r => r.curr !== null).slice(-1)[0]?.curr ?? 0;
-    const prevTotal = prevRunning; // 지난 달 전체 누적
+    const prevTotal = result[Math.min(currVisibleDays, prevDays) - 1]?.prev ?? 0;
     const diff = currTotal - prevTotal;
 
     return { chartData: result, diff, currDays: currVisibleDays, prevDays };
